@@ -156,7 +156,7 @@ public:
 	}
 
 	template<typename T> void CopyTo(T* arr, int count) {
-		Buffer* stagging = stagged != nullptr ? stagged : stagged = manager->builder->StructuredBuffer<T>(byteLength/sizeof(T), D3D11_USAGE_STAGING, (D3D11_BIND_FLAG)0);
+		Buffer* stagging = stagged != nullptr ? stagged : stagged = manager->builder->StructuredBuffer<T>(byteLength / sizeof(T), D3D11_USAGE_STAGING, (D3D11_BIND_FLAG)0);
 		manager->getContext()->CopyResource(stagging->getInternalBuffer(), this->getInternalBuffer());
 		D3D11_MAPPED_SUBRESOURCE map;
 		manager->getContext()->Map(stagging->getInternalBuffer(), 0, D3D11_MAP_READ, (D3D11_MAP_FLAG)0, &map);
@@ -213,7 +213,7 @@ class Sampler {
 private:
 	ID3D11SamplerState* sst;
 public:
-	Sampler(ID3D11SamplerState *sst):sst(sst) {
+	Sampler(ID3D11SamplerState *sst) :sst(sst) {
 	}
 	inline ID3D11SamplerState* getInnerSampler() { return sst; }
 };
@@ -224,10 +224,30 @@ class ShaderBinding
 	friend class Setter;
 	friend class Loader;
 
+	friend class VertexShaderBinding;
+	friend class GeometryShaderBinding;
+	friend class PixelShaderBinding;
+	friend class ComputeShaderBinding;
+
 private:
 	void Bind(DeviceManager* manager)
 	{
 		this->Manager = manager;
+	}
+
+	int SRVSlots[32];
+	int srvCount = 0;
+	int CBSlots[32];
+	int cbCount = 0;
+	int UAVSlots[32];
+	int uavCount = 0;
+	void Unset() {
+		for (int i = 0; i < srvCount; i++)
+			SRV(SRVSlots[i], NULL);
+		for (int i = 0; i < cbCount; i++)
+			CB(CBSlots[i], NULL);
+		for (int i = 0; i < uavCount; i++)
+			UAV(UAVSlots[i], NULL);
 	}
 protected:
 	DeviceManager *Manager;
@@ -263,14 +283,39 @@ protected:
 	virtual void OnLocal() { }
 	virtual void Load() = 0;
 	virtual void Set() = 0;
-	virtual void CB(int slot, Buffer* cb) = 0;
-	virtual void SRV(int slot, Resource* resource) = 0;
-	virtual void SMP(int slot, Sampler* smp) = 0;
+	inline void CB(int slot, Buffer* cb) {
+		CBSlots[cbCount++] = slot;
+		OnCB(slot, cb);
+	}
+	inline void SRV(int slot, Resource* resource) {
+		SRVSlots[srvCount++] = slot;
+		OnSRV(slot, resource);
+	}
+	void SRV(int slot, Resource** resources, int count)
+	{
+		for (int i = 0; i < count; i++, slot++)
+			OnSRV(slot, resources[i]);
+	}
+
+	inline void SMP(int slot, Sampler* smp) {
+		OnSMP(slot, smp);
+	}
+	void UAV(int slot, Resource* resource) {
+		UAVSlots[uavCount++] = slot;
+		OnUAV(slot, resource);
+	}
+
+
+	virtual void OnCB(int slot, Buffer* cb) = 0;
+	virtual void OnSRV(int slot, Resource* resource) = 0;
+	virtual void OnSMP(int slot, Sampler* smp) = 0;
+	virtual void OnUAV(int slot, Resource* resource) = 0;
 
 	~ShaderBinding() {
 		delete[] code;
 	}
 public:
+
 	ShaderBinding() {
 	}
 	void UpdateLocal()
@@ -284,6 +329,10 @@ class VertexShaderBinding : public ShaderBinding
 private:
 	ID3D11VertexShader *__Shader;
 	ID3D11InputLayout *__InputLayout;
+
+	void OnUAV(int slot, Resource* resource) {
+
+	}
 protected:
 	void VertexShaderBinding::LoadInputLayout(D3D11_INPUT_ELEMENT_DESC* layout, int numElements)
 	{
@@ -300,18 +349,18 @@ protected:
 
 		OnGlobal();
 	}
-	void VertexShaderBinding::SRV(int slot, Resource* resource)
+	void OnSRV(int slot, Resource* resource)
 	{
 		ID3D11ShaderResourceView* view = resource == NULL ? NULL : resource->GetSRV();
 		Manager->getContext()->VSSetShaderResources(slot, 1, &view);
 	}
-	void VertexShaderBinding::CB(int slot, Buffer* cb)
+	void OnCB(int slot, Buffer* cb)
 	{
-		ID3D11Buffer* b = cb->getInternalBuffer();
+		ID3D11Buffer* b = cb == nullptr ? nullptr : cb->getInternalBuffer();
 		this->Manager->getContext()->VSSetConstantBuffers(slot, 1, &b);
 	}
-	void SMP(int slot, Sampler* smp) {
-		ID3D11SamplerState *sst = smp->getInnerSampler();
+	void OnSMP(int slot, Sampler* smp) {
+		ID3D11SamplerState *sst = smp == nullptr ? nullptr : smp->getInnerSampler();
 		this->Manager->getContext()->VSSetSamplers(slot, 1, &sst);
 	}
 public:
@@ -325,6 +374,7 @@ public:
 class ComputeShaderBinding : public ShaderBinding {
 private:
 	ID3D11ComputeShader *__Shader;
+
 protected:
 	void CreateShader()
 	{
@@ -339,37 +389,27 @@ protected:
 		OnGlobal();
 	}
 
-	void SRV(int slot, Resource* resource)
+	void OnSRV(int slot, Resource* resource)
 	{
 		ID3D11ShaderResourceView* view = resource == NULL ? NULL : resource->GetSRV();
 		Manager->getContext()->CSSetShaderResources(slot, 1, &view);
 	}
 
-	void SRV(int slot, Resource** resources, int count)
-	{
-		for (int i = 0; i < count; i++, slot++)
-		{
-			Resource* resource = resources[i];
-			ID3D11ShaderResourceView* view = resource == NULL ? NULL : resource->GetSRV();
-			Manager->getContext()->CSSetShaderResources(slot, 1, &view);
-		}
-	}
-
-	void UAV(int slot, Resource* resource)
+	void OnUAV(int slot, Resource* resource)
 	{
 		ID3D11UnorderedAccessView* uav = resource == NULL ? NULL : resource->GetUAV();
 		unsigned int offset = -1;
 		this->Manager->getContext()->CSSetUnorderedAccessViews(slot, 1, &uav, &offset);
 	}
-	
-	void CB(int slot, Buffer* cb)
+
+	void OnCB(int slot, Buffer* cb)
 	{
-		ID3D11Buffer* b = cb->getInternalBuffer();
+		ID3D11Buffer* b = cb == nullptr ? nullptr : cb->getInternalBuffer();
 		this->Manager->getContext()->CSSetConstantBuffers(slot, 1, &b);
 	}
 
-	void SMP(int slot, Sampler* smp) {
-		ID3D11SamplerState *sst = smp->getInnerSampler();
+	void OnSMP(int slot, Sampler* smp) {
+		ID3D11SamplerState *sst = smp == nullptr ? nullptr : smp->getInnerSampler();
 		this->Manager->getContext()->CSSetSamplers(slot, 1, &sst);
 	}
 };
@@ -402,8 +442,6 @@ protected:
 		endUAV = 0;
 		startUAV = 128;
 
-		Manager->getContext()->OMSetRenderTargetsAndUnorderedAccessViews(0, NULL, NULL, 0, 0, NULL, NULL);
-		
 		Manager->getContext()->PSSetShader(__Shader, NULL, 0);
 
 		OnGlobal();
@@ -411,22 +449,12 @@ protected:
 		Manager->getContext()->OMSetRenderTargetsAndUnorderedAccessViews(max(0, endRT - startRT + 1), &renderTargets[startRT], dsv, startUAV, max(0, endUAV - startUAV + 1), &uavs[startUAV], NULL);
 		//Manager->getContext()->OMSetRenderTargets (1, &renderTargets[0], dsv);
 	}
-	void SRV(int slot, Resource* resource)
+	void OnSRV(int slot, Resource* resource)
 	{
 		ID3D11ShaderResourceView* view = resource == NULL ? NULL : resource->GetSRV();
 		Manager->getContext()->PSSetShaderResources(slot, 1, &view);
 	}
-	void SRV(int slot, Resource** resources, int count)
-	{
-		for (int i = 0; i < count; i++, slot++)
-		{
-			Resource* resource = resources[i];
-			ID3D11ShaderResourceView* view = resource == NULL ? NULL : resource->GetSRV();
-			Manager->getContext()->PSSetShaderResources(slot, 1, &view);
-		}
-	}
-
-	void UAV(int slot, Resource* resource)
+	void OnUAV(int slot, Resource* resource)
 	{
 		endUAV = max(endUAV, slot);
 		startUAV = min(startUAV, slot);
@@ -441,19 +469,18 @@ protected:
 		startRT = min(startRT, slot);
 		renderTargets[slot] = resource == NULL ? NULL : resource->GetRTV();
 	}
-
 	void DB(Texture2D* texture) {
 		if (texture == NULL)
 			dsv = NULL;
 		dsv = texture == NULL ? NULL : texture->GetDSV();
 	}
-	void CB(int slot, Buffer* cb)
+	void OnCB(int slot, Buffer* cb)
 	{
-		ID3D11Buffer* b = cb->getInternalBuffer();
+		ID3D11Buffer* b = cb == nullptr ? nullptr : cb->getInternalBuffer();
 		this->Manager->getContext()->PSSetConstantBuffers(slot, 1, &b);
 	}
-	void SMP(int slot, Sampler* smp) {
-		ID3D11SamplerState *sst = smp->getInnerSampler();
+	void OnSMP(int slot, Sampler* smp) {
+		ID3D11SamplerState *sst = smp == nullptr ? nullptr : smp->getInnerSampler();
 		this->Manager->getContext()->PSSetSamplers(slot, 1, &sst);
 	}
 
@@ -474,6 +501,10 @@ class GeometryShaderBinding : public ShaderBinding
 {
 private:
 	ID3D11GeometryShader *__Shader;
+
+	void OnUAV(int slot, Resource* resource) {
+
+	}
 protected:
 	void CreateShader()
 	{
@@ -487,20 +518,20 @@ protected:
 		OnGlobal();
 	}
 
-	void SRV(int slot, Resource* resource)
+	void OnSRV(int slot, Resource* resource)
 	{
 		ID3D11ShaderResourceView* view = resource == NULL ? NULL : resource->GetSRV();
 		Manager->getContext()->GSSetShaderResources(slot, 1, &view);
 	}
 
-	void CB(int slot, Buffer* cb)
+	void OnCB(int slot, Buffer* cb)
 	{
-		ID3D11Buffer* b = cb->getInternalBuffer();
+		ID3D11Buffer* b = cb == nullptr ? nullptr : cb->getInternalBuffer();
 		this->Manager->getContext()->GSSetConstantBuffers(slot, 1, &b);
 	}
 
-	void SMP(int slot, Sampler* smp) {
-		ID3D11SamplerState *sst = smp->getInnerSampler();
+	void OnSMP(int slot, Sampler* smp) {
+		ID3D11SamplerState *sst = smp == nullptr ? nullptr : smp->getInnerSampler();
 		this->Manager->getContext()->GSSetSamplers(slot, 1, &sst);
 	}
 public:
@@ -706,7 +737,7 @@ private:
 				dpiX,
 				dpiY
 				);
-		
+
 		// Create a Direct2D render target            
 		pRT = NULL;
 		hr = pD2DFactory->CreateDxgiSurfaceRenderTarget(pBackBufferSurface,
@@ -726,7 +757,7 @@ private:
 		color.b = 1;
 		color.g = 1;
 		color.r = 1;
-		
+
 		pRT->CreateSolidColorBrush(color, &solidColorBrush);
 
 		dwfactory->CreateTextFormat(L"Consolas", NULL,
@@ -737,7 +768,7 @@ private:
 			L"en-us",
 			&format
 			);
-		
+
 		ID3D11RenderTargetView *backBufferRTV;
 		hr = g_pd3dDevice->CreateRenderTargetView(pBackBuffer, NULL, &backBufferRTV);
 
@@ -900,9 +931,21 @@ public:
 
 	DeviceManager* Pipeline(VertexShaderBinding* vs, GeometryShaderBinding* gs, PixelShaderBinding *ps)
 	{
+		if (manager->vs != nullptr)
+			manager->vs->Unset();
+		if (manager->gs != nullptr)
+			manager->gs->Unset();
+		if (manager->ps != nullptr)
+			manager->ps->Unset();
+		if (manager->cs != nullptr)
+			manager->cs->Unset();
+
+		manager->getContext()->OMSetRenderTargetsAndUnorderedAccessViews(0, NULL, NULL, 0, 0, NULL, NULL);
+
 		manager->vs = vs;
 		manager->gs = gs;
 		manager->ps = ps;
+		manager->cs = nullptr;
 
 		if (vs != NULL)
 			((ShaderBinding*)vs)->Set();
@@ -923,13 +966,26 @@ public:
 	}
 
 	DeviceManager* Computation(ComputeShaderBinding* cs) {
+		if (manager->vs != nullptr)
+			manager->vs->Unset();
+		if (manager->gs != nullptr)
+			manager->gs->Unset();
+		if (manager->ps != nullptr)
+			manager->ps->Unset();
+		if (manager->cs != nullptr)
+			manager->cs->Unset();
+
+		manager->getContext()->OMSetRenderTargetsAndUnorderedAccessViews(0, NULL, NULL, 0, 0, NULL, NULL);
+		manager->vs = nullptr;
+		manager->gs = nullptr;
+		manager->ps = nullptr;
 		manager->cs = cs;
-		
+
 		if (cs != nullptr)
 			((ShaderBinding*)cs)->Set();
 		else
 			manager->getContext()->CSSetShader(nullptr, nullptr, 0);
-		
+
 		return manager;
 	}
 
@@ -1048,7 +1104,7 @@ public:
 		return new Buffer(this->manager, buffer, stride);
 	};
 
-	template<class T> Buffer* StructuredBuffer(int size, 
+	template<class T> Buffer* StructuredBuffer(int size,
 		D3D11_USAGE usage = D3D11_USAGE_DEFAULT,
 		D3D11_BIND_FLAG flags = (D3D11_BIND_FLAG)(D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS))
 	{
@@ -1142,7 +1198,7 @@ public:
 		desc.MipLODBias = 0.0f;
 		desc.MaxAnisotropy = 16;
 		desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-		
+
 		return Sampler(desc);
 	}
 
