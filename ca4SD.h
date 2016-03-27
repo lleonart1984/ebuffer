@@ -877,15 +877,18 @@ public:
 	}*/
 };
 
+#define SScene Scene<VERTEX, MATERIAL>
+#define SVisual Visual<VERTEX, MATERIAL>
+
 template<typename D>
 class SceneProcess : public Process<D> {
 protected:
-	Scene<VERTEX, MATERIAL>*scene;
+	SScene *scene;
 public:
 	SceneProcess(DeviceManager* manager, D description) :Process<D>(manager, description) {
 	}
 
-	virtual void SetScene(Scene<VERTEX, MATERIAL> *scene) {
+	virtual void SetScene(SScene *scene) {
 		this->scene = scene;
 	}
 };

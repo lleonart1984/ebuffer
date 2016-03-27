@@ -49,6 +49,9 @@
     <ClInclude Include="gmath.h">
       <Filter>CA4G</Filter>
     </ClInclude>
+    <ClInclude Include="Processes\BasicProcess.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -70,5 +73,9 @@
     <Image Include="SampleApp.ico">
       <Filter>Resource Files</Filter>
     </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="Shaders\BasicVS.hlsl" />
+    <FxCompile Include="Shaders\BasicPS.hlsl" />
   </ItemGroup>
 </Project>

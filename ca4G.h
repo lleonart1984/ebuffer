@@ -231,60 +231,32 @@ private:
 	}
 protected:
 	DeviceManager *Manager;
-	ID3DBlob *__Blob;
+	byte* code;
+	int codeLength;
 
 	virtual void CreateShader() = 0;
 
-	//--------------------------------------------------------------------------------------
-	// Helper for compiling shaders with D3DCompile
-	//
-	// With VS 11, we could load up prebuilt .cso files instead...
-	//--------------------------------------------------------------------------------------
-	HRESULT CompileShaderFromFile(WCHAR* szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut)
+	void LoadCode(const char* fileName)
 	{
-		HRESULT hr = S_OK;
-
-		DWORD dwShaderFlags = D3DCOMPILE_ENABLE_STRICTNESS | D3DCOMPILE_OPTIMIZATION_LEVEL3 | D3DCOMPILE_PARTIAL_PRECISION;
-#ifdef _DEBUG
-		// Set the D3DCOMPILE_DEBUG flag to embed debug information in the shaders.
-		// Setting this flag improves the shader debugging experience, but still allows 
-		// the shaders to be optimized and to run exactly the way they will run in 
-		// the release configuration of this program.
-		//dwShaderFlags |= D3DCOMPILE_DEBUG;
-
-		// Disable optimizations to further improve shader debugging
-		//dwShaderFlags |= D3DCOMPILE_SKIP_OPTIMIZATION;
-#endif
-
-		ID3DBlob* pErrorBlob = NULL;
-		hr = D3DCompileFromFile(szFileName, NULL, NULL, szEntryPoint, szShaderModel,
-			dwShaderFlags, 0, ppBlobOut, &pErrorBlob);
-		if (FAILED(hr))
-		{
-			if (pErrorBlob)
-			{
-				OutputDebugStringA(reinterpret_cast<const char*>(pErrorBlob->GetBufferPointer()));
-				pErrorBlob->Release();
-			}
-			return hr;
-		}
-		if (pErrorBlob) pErrorBlob->Release();
-
-		return S_OK;
-	}
-
-	void LoadCode(WCHAR* fileName, LPCSTR profile)
-	{
-		// Compile the pixel shader
-		HRESULT hr = CompileShaderFromFile(fileName, "main", profile, &__Blob);
-
-
-		if (FAILED(hr))
+		FILE* file;
+		if (fopen_s(&file, fileName, "rb") != 0)
 		{
 			throw "Can not find the shader";
 			return;
 		}
+		fseek(file, 0, SEEK_END);
+		long long count;
+		count = ftell(file);
+		fseek(file, 0, SEEK_SET);
 
+		code = new byte[count];
+		int offset = 0;
+		while (offset < count) {
+			offset += fread_s(&code[offset], min(1024, count - offset), sizeof(byte), 1024, file);
+		}
+		fclose(file);
+
+		codeLength = count;
 		CreateShader();
 	}
 	virtual void OnGlobal() { }
@@ -296,8 +268,7 @@ protected:
 	virtual void SMP(int slot, Sampler* smp) = 0;
 
 	~ShaderBinding() {
-		__Blob->Release();
-		delete __Blob;
+		delete[] code;
 	}
 public:
 	ShaderBinding() {
@@ -316,11 +287,11 @@ private:
 protected:
 	void VertexShaderBinding::LoadInputLayout(D3D11_INPUT_ELEMENT_DESC* layout, int numElements)
 	{
-		HRESULT hr = Manager->getDevice()->CreateInputLayout(layout, numElements, __Blob->GetBufferPointer(), __Blob->GetBufferSize(), &__InputLayout);
+		HRESULT hr = Manager->getDevice()->CreateInputLayout(layout, numElements, code, codeLength, &__InputLayout);
 	}
 	void CreateShader()
 	{
-		Manager->getDevice()->CreateVertexShader(__Blob->GetBufferPointer(), __Blob->GetBufferSize(), NULL, &__Shader);
+		auto err = Manager->getDevice()->CreateVertexShader(code, codeLength, NULL, &__Shader);
 	}
 	void Set()
 	{
@@ -357,7 +328,7 @@ private:
 protected:
 	void CreateShader()
 	{
-		Manager->getDevice()->CreateComputeShader(__Blob->GetBufferPointer(), __Blob->GetBufferSize(), NULL, &__Shader);
+		Manager->getDevice()->CreateComputeShader(code, codeLength, NULL, &__Shader);
 	}
 
 	void Set()
@@ -421,7 +392,7 @@ private:
 protected:
 	void CreateShader()
 	{
-		Manager->getDevice()->CreatePixelShader(__Blob->GetBufferPointer(), __Blob->GetBufferSize(), NULL, &__Shader);
+		Manager->getDevice()->CreatePixelShader(code, codeLength, NULL, &__Shader);
 	}
 	void Set()
 	{
@@ -510,7 +481,7 @@ private:
 protected:
 	void CreateShader()
 	{
-		Manager->getDevice()->CreateGeometryShader(__Blob->GetBufferPointer(), __Blob->GetBufferSize(), NULL, &__Shader);
+		Manager->getDevice()->CreateGeometryShader(code, codeLength, NULL, &__Shader);
 	}
 
 	void Set()
