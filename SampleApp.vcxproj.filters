@@ -17,6 +17,10 @@
       <UniqueIdentifier>{16d43267-003b-43e8-addc-abe7e095d419}</UniqueIdentifier>
       <Extensions>CA4G*.h</Extensions>
     </Filter>
+    <Filter Include="Shaders">
+      <UniqueIdentifier>{d6ae504f-24bb-42ab-928e-32cabb2aaba9}</UniqueIdentifier>
+      <Extensions>hlsl</Extensions>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
@@ -52,6 +56,12 @@
     <ClInclude Include="Processes\BasicProcess.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Processes\SceneGeometryConstruction.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Processes\DebugSGC.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -75,7 +85,26 @@
     </Image>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="Shaders\BasicVS.hlsl" />
-    <FxCompile Include="Shaders\BasicPS.hlsl" />
+    <FxCompile Include="Shaders\BasicVS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\BasicPS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\SGC_GS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\SGC_PS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\SGC_VS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\ShowSG_PS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\ShowSG_VS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

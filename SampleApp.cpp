@@ -11,6 +11,10 @@
 #define SPONZA 3
 #define USED_SCENE SPONZA
 
+#define BASIC 1
+#define Debug_SGC 2
+#define USED_PROCESS Debug_SGC
+
 // Global Variables:
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
@@ -71,7 +75,14 @@ void InitializeScene(DeviceManager* manager)
 
 void InitializeProcess() {
 	auto backBuffer = presenter->GetBackBuffer();
-	process = presenter->Load<BasicProcess>(ScreenDescription(backBuffer->getWidth(), backBuffer->getHeight()));
+	switch (USED_PROCESS) {
+	case BASIC:
+		process = presenter->Load<BasicProcess>(ScreenDescription(backBuffer->getWidth(), backBuffer->getHeight()));
+		break;
+	case Debug_SGC:
+		process = presenter->Load<DebugSGCProcess>(ScreenDescription(backBuffer->getWidth(), backBuffer->getHeight()));
+		break;
+	}
 	process->RenderTarget = backBuffer;
 	process->SetScene(scene);
 }

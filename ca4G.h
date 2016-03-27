@@ -403,11 +403,7 @@ protected:
 		startUAV = 128;
 
 		Manager->getContext()->OMSetRenderTargetsAndUnorderedAccessViews(0, NULL, NULL, 0, 0, NULL, NULL);
-		unsigned int count = -1;
-		ID3D11UnorderedAccessView* view = nullptr;
-		this->Manager->getContext()->CSSetUnorderedAccessViews(0, 1, &view, &count);
-
-
+		
 		Manager->getContext()->PSSetShader(__Shader, NULL, 0);
 
 		OnGlobal();
