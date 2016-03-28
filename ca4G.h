@@ -3,8 +3,8 @@
 #include <d3d11.h>
 #include <d3d11_1.h>
 #include <d3d11_2.h>
+//#include <d3d11_3.h>
 #include <d3d11shader.h>
-#include <d3dcompiler.h>
 #include "gmath.h"
 #include "ddsSupport.h"
 #include <D2d1.h>
@@ -75,6 +75,8 @@ public:
 	}
 
 	void Dispatch(int xCount, int yCount, int zCount);
+
+	void Show(PixelShaderBinding *ps, int width, int height);
 };
 
 class Resource
@@ -294,7 +296,7 @@ protected:
 	void SRV(int slot, Resource** resources, int count)
 	{
 		for (int i = 0; i < count; i++, slot++)
-			OnSRV(slot, resources[i]);
+			SRV(slot, resources[i]);
 	}
 
 	inline void SMP(int slot, Sampler* smp) {
@@ -880,154 +882,33 @@ public:
 	}
 };
 
-class Setter
-{
-private:
-	DeviceManager* manager;
-	D3D11_RASTERIZER_DESC rasterizer;
-	void Setter::UpdateRasterizerState() {
-		ID3D11RasterizerState *rs;
-		manager->getDevice()->CreateRasterizerState(&rasterizer, &rs);
-		manager->getContext()->RSSetState(rs);
-		rs->Release();
-	}
-
-	D3D11_DEPTH_STENCIL_DESC depth;
-	void UpdateDepthTestState() {
-		ID3D11DepthStencilState *ds;
-		manager->getDevice()->CreateDepthStencilState(&depth, &ds);
-		manager->getContext()->OMSetDepthStencilState(ds, 0);
-	}
-public:
-	Setter(DeviceManager* manager) {
-		this->manager = manager;
-		ZeroMemory(&rasterizer, sizeof(D3D11_RASTERIZER_DESC));
-		rasterizer.FillMode = D3D11_FILL_SOLID;
-		rasterizer.CullMode = D3D11_CULL_BACK;
-
-		ZeroMemory(&depth, sizeof(D3D11_DEPTH_STENCIL_DESC));
-		depth.DepthEnable = true;
-		depth.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-		depth.DepthFunc = D3D11_COMPARISON_LESS;
-		depth.StencilEnable = false;
-		depth.StencilReadMask = D3D11_DEFAULT_STENCIL_READ_MASK;
-		depth.StencilWriteMask = D3D11_DEFAULT_STENCIL_WRITE_MASK;
-		depth.FrontFace.StencilFunc = depth.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
-		depth.FrontFace.StencilPassOp = depth.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-		depth.FrontFace.StencilFailOp = depth.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-
-		//UpdateRasterizerState();
-	}
-
-	inline DeviceManager* Viewport(float width, float height)
-	{
-		return Viewport(0, 0, width, height, 0, 1);
-	}
-
-	inline DeviceManager* Pipeline(VertexShaderBinding* vs, PixelShaderBinding *ps)
-	{
-		return Pipeline(vs, NULL, ps);
-	}
-
-	DeviceManager* Pipeline(VertexShaderBinding* vs, GeometryShaderBinding* gs, PixelShaderBinding *ps)
-	{
-		if (manager->vs != nullptr)
-			manager->vs->Unset();
-		if (manager->gs != nullptr)
-			manager->gs->Unset();
-		if (manager->ps != nullptr)
-			manager->ps->Unset();
-		if (manager->cs != nullptr)
-			manager->cs->Unset();
-
-		manager->getContext()->OMSetRenderTargetsAndUnorderedAccessViews(0, NULL, NULL, 0, 0, NULL, NULL);
-
-		manager->vs = vs;
-		manager->gs = gs;
-		manager->ps = ps;
-		manager->cs = nullptr;
-
-		if (vs != NULL)
-			((ShaderBinding*)vs)->Set();
-		else
-			manager->getContext()->VSSetShader(nullptr, nullptr, 0);
-
-		if (gs != NULL)
-			((ShaderBinding*)gs)->Set();
-		else
-			manager->getContext()->GSSetShader(nullptr, nullptr, 0);
-
-		if (ps != NULL)
-			((ShaderBinding*)ps)->Set();
-		else
-			manager->getContext()->PSSetShader(nullptr, nullptr, 0);
-
-		return this->manager;
-	}
-
-	DeviceManager* Computation(ComputeShaderBinding* cs) {
-		if (manager->vs != nullptr)
-			manager->vs->Unset();
-		if (manager->gs != nullptr)
-			manager->gs->Unset();
-		if (manager->ps != nullptr)
-			manager->ps->Unset();
-		if (manager->cs != nullptr)
-			manager->cs->Unset();
-
-		manager->getContext()->OMSetRenderTargetsAndUnorderedAccessViews(0, NULL, NULL, 0, 0, NULL, NULL);
-		manager->vs = nullptr;
-		manager->gs = nullptr;
-		manager->ps = nullptr;
-		manager->cs = cs;
-
-		if (cs != nullptr)
-			((ShaderBinding*)cs)->Set();
-		else
-			manager->getContext()->CSSetShader(nullptr, nullptr, 0);
-
-		return manager;
-	}
-
-	DeviceManager* Viewport(float x, float y, float width, float height, float minZ, float maxZ)
-	{
-		D3D11_VIEWPORT viewport;
-		viewport.TopLeftX = x;
-		viewport.TopLeftY = y;
-		viewport.Width = width;
-		viewport.Height = height;
-		viewport.MinDepth = minZ;
-		viewport.MaxDepth = maxZ;
-		this->manager->getContext()->RSSetViewports(1, &viewport);
-		return this->manager;
-	}
-
-
-	void Fill(D3D11_FILL_MODE mode)
-	{
-		rasterizer.FillMode = mode;
-		UpdateRasterizerState();
-	}
-
-	void Cull(D3D11_CULL_MODE mode)
-	{
-		rasterizer.CullMode = mode;
-		UpdateRasterizerState();
-	}
-
-	void DepthTest(bool enable = true, bool write = true, D3D11_COMPARISON_FUNC comparison = D3D11_COMPARISON_LESS) {
-		depth.DepthEnable = enable;
-		depth.DepthWriteMask = write ? D3D11_DEPTH_WRITE_MASK_ALL : D3D11_DEPTH_WRITE_MASK_ZERO;
-		depth.DepthFunc = comparison;
-		UpdateDepthTestState();
-	}
-	void DepthTestOnly(D3D11_COMPARISON_FUNC comparison = D3D11_COMPARISON_LESS) {
-		DepthTest(true, false, comparison);
-	}
-	void NoDepthTest() {
-		DepthTest(false);
+class __Screen_VS : public VertexShaderBinding {
+protected:
+	void Load() {
+		LoadCode("Shaders\\__Screen_VS.cso");
+		D3D11_INPUT_ELEMENT_DESC des[1]{
+			{ "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+		};
+		LoadInputLayout(des, 1);
 	}
 };
+
+template<typename T>
+struct Formats { static const DXGI_FORMAT Value = DXGI_FORMAT_UNKNOWN; };
+template<>
+struct Formats<char> { static const DXGI_FORMAT Value = DXGI_FORMAT_R8_SINT; };
+template<>
+struct Formats<float> { static const DXGI_FORMAT Value = DXGI_FORMAT_R32_FLOAT; };
+template<>
+struct Formats <int> { static const DXGI_FORMAT Value = DXGI_FORMAT_R32_SINT; };
+template<>
+struct Formats <unsigned int>{ static const DXGI_FORMAT Value = DXGI_FORMAT_R32_UINT; };
+template<>
+struct Formats <float2>{ static const DXGI_FORMAT Value = DXGI_FORMAT_R32G32_FLOAT; };
+template<>
+struct Formats <float3>{ static const DXGI_FORMAT Value = DXGI_FORMAT_R32G32B32_FLOAT; };
+template<>
+struct Formats <float4>{ static const DXGI_FORMAT Value = DXGI_FORMAT_R32G32B32A32_FLOAT; };
 
 class Builder
 {
@@ -1152,6 +1033,35 @@ public:
 		return new Buffer(this->manager, buffer, sizeof(T));
 	}
 
+	template<class T> Texture2D* Texture(int width, int height,
+		D3D11_USAGE usage = D3D11_USAGE_DEFAULT,
+		D3D11_BIND_FLAG flags = (D3D11_BIND_FLAG)(D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS))
+	{
+		ID3D11Texture2D* texture;
+
+		auto format = Formats<T>::Value;
+
+		D3D11_TEXTURE2D_DESC td;
+		ZeroMemory(&td, sizeof(D3D11_TEXTURE2D_DESC));
+		// Create the buffers
+		td.Usage = usage;
+		td.Format = format;
+		td.Width = width;
+		td.Height = height;
+		td.BindFlags = flags;
+		td.CPUAccessFlags = usage == D3D11_USAGE_DEFAULT ? 0 : usage == D3D11_USAGE_DYNAMIC ? D3D11_CPU_ACCESS_WRITE : usage == D3D11_USAGE_STAGING ? D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_WRITE : 0;
+		td.MipLevels = 1;
+		td.ArraySize = 1;
+		td.SampleDesc.Count = 1;
+		td.SampleDesc.Quality = 0;
+		HRESULT hr = this->manager->getDevice()->CreateTexture2D(&td, NULL, &texture);
+		if (FAILED(hr))
+			return NULL;
+
+		return new Texture2D(this->manager, texture);
+	}
+
+
 	template<class T> Buffer* ConstantBuffer()
 	{
 		return ConstantBuffer(sizeof(T));
@@ -1213,21 +1123,22 @@ private:
 	DeviceManager* manager;
 public:
 	Loader(DeviceManager* manager) { this->manager = manager; }
-	template <class S> S* Shader()
+	template <class S> void Shader(S* &shader)
 	{
-		S* shader = new S();
+		shader = new S();
 
 		((ShaderBinding*)shader)->Bind(this->manager);
 
 		((ShaderBinding*)shader)->Load();
-
-		return shader;
 	}
 
-	template <typename P, typename D> P* Process(D description) {
-		P* process = new P(manager, description);
+	template <typename P, typename D> void Process(P* &process, D description) {
+		process = new P(manager, description);
 		((::Process<D>*)process)->Initialize();
-		return process;
+	}
+	template <typename P> void Process(P* &process) {
+		process = new P(manager, NoDescription());
+		((::Process<NoDescription>*)process)->Initialize();
 	}
 
 	Texture2D* Texture(const char* filePath) {
@@ -1239,14 +1150,187 @@ public:
 	}
 };
 
+class Setter
+{
+	friend class DeviceManager;
+private:
+	DeviceManager* manager;
+	D3D11_RASTERIZER_DESC rasterizer;
+	void Setter::UpdateRasterizerState() {
+		ID3D11RasterizerState *rs;
+		manager->getDevice()->CreateRasterizerState(&rasterizer, &rs);
+		manager->getContext()->RSSetState(rs);
+		rs->Release();
+	}
+
+	D3D11_DEPTH_STENCIL_DESC depth;
+	void UpdateDepthTestState() {
+		ID3D11DepthStencilState *ds;
+		manager->getDevice()->CreateDepthStencilState(&depth, &ds);
+		manager->getContext()->OMSetDepthStencilState(ds, 0);
+	}
+
+	__Screen_VS *screenVS;
+
+	void InitializeShader() {
+		manager->loader->Shader(screenVS);
+	}
+public:
+	Setter(DeviceManager* manager) {
+		this->manager = manager;
+		ZeroMemory(&rasterizer, sizeof(D3D11_RASTERIZER_DESC));
+		rasterizer.FillMode = D3D11_FILL_SOLID;
+		rasterizer.CullMode = D3D11_CULL_BACK;
+
+		ZeroMemory(&depth, sizeof(D3D11_DEPTH_STENCIL_DESC));
+		depth.DepthEnable = true;
+		depth.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+		depth.DepthFunc = D3D11_COMPARISON_LESS;
+		depth.StencilEnable = false;
+		depth.StencilReadMask = D3D11_DEFAULT_STENCIL_READ_MASK;
+		depth.StencilWriteMask = D3D11_DEFAULT_STENCIL_WRITE_MASK;
+		depth.FrontFace.StencilFunc = depth.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+		depth.FrontFace.StencilPassOp = depth.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+		depth.FrontFace.StencilFailOp = depth.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+	}
+	~Setter() {
+		delete screenVS;
+	}
+
+	inline DeviceManager* Viewport(float width, float height)
+	{
+		return Viewport(0, 0, width, height, 0, 1);
+	}
+
+	inline DeviceManager* Pipeline(VertexShaderBinding* vs, PixelShaderBinding *ps)
+	{
+		return Pipeline(vs, NULL, ps);
+	}
+
+	DeviceManager* Pipeline(VertexShaderBinding* vs, GeometryShaderBinding* gs, PixelShaderBinding *ps)
+	{
+		if (manager->vs != nullptr)
+			manager->vs->Unset();
+		if (manager->gs != nullptr)
+			manager->gs->Unset();
+		if (manager->ps != nullptr)
+			manager->ps->Unset();
+		if (manager->cs != nullptr)
+			manager->cs->Unset();
+
+		manager->getContext()->OMSetRenderTargetsAndUnorderedAccessViews(0, NULL, NULL, 0, 0, NULL, NULL);
+
+		manager->vs = vs;
+		manager->gs = gs;
+		manager->ps = ps;
+		manager->cs = nullptr;
+
+		if (vs != NULL)
+			((ShaderBinding*)vs)->Set();
+		else
+			manager->getContext()->VSSetShader(nullptr, nullptr, 0);
+
+		if (gs != NULL)
+			((ShaderBinding*)gs)->Set();
+		else
+			manager->getContext()->GSSetShader(nullptr, nullptr, 0);
+
+		if (ps != NULL)
+			((ShaderBinding*)ps)->Set();
+		else
+			manager->getContext()->PSSetShader(nullptr, nullptr, 0);
+
+		return this->manager;
+	}
+
+	DeviceManager* Computation(ComputeShaderBinding* cs) {
+		if (manager->vs != nullptr)
+			manager->vs->Unset();
+		if (manager->gs != nullptr)
+			manager->gs->Unset();
+		if (manager->ps != nullptr)
+			manager->ps->Unset();
+		if (manager->cs != nullptr)
+			manager->cs->Unset();
+
+		manager->getContext()->OMSetRenderTargetsAndUnorderedAccessViews(0, NULL, NULL, 0, 0, NULL, NULL);
+		manager->vs = nullptr;
+		manager->gs = nullptr;
+		manager->ps = nullptr;
+		manager->cs = cs;
+
+		if (cs != nullptr)
+			((ShaderBinding*)cs)->Set();
+		else
+			manager->getContext()->CSSetShader(nullptr, nullptr, 0);
+
+		return manager;
+	}
+
+	DeviceManager* Viewport(float x, float y, float width, float height, float minZ, float maxZ)
+	{
+		D3D11_VIEWPORT viewport;
+		viewport.TopLeftX = x;
+		viewport.TopLeftY = y;
+		viewport.Width = width;
+		viewport.Height = height;
+		viewport.MinDepth = minZ;
+		viewport.MaxDepth = maxZ;
+		this->manager->getContext()->RSSetViewports(1, &viewport);
+		return this->manager;
+	}
+
+	DeviceManager* Pipeline(PixelShaderBinding *ps) {
+		return Pipeline(screenVS, ps);
+	}
+
+	void Fill(D3D11_FILL_MODE mode)
+	{
+		rasterizer.FillMode = mode;
+		UpdateRasterizerState();
+	}
+
+	void Cull(D3D11_CULL_MODE mode)
+	{
+		rasterizer.CullMode = mode;
+		UpdateRasterizerState();
+	}
+
+	void DepthTest(bool enable = true, bool write = true, D3D11_COMPARISON_FUNC comparison = D3D11_COMPARISON_LESS) {
+		depth.DepthEnable = enable;
+		depth.DepthWriteMask = write ? D3D11_DEPTH_WRITE_MASK_ALL : D3D11_DEPTH_WRITE_MASK_ZERO;
+		depth.DepthFunc = comparison;
+		UpdateDepthTestState();
+	}
+	void DepthTestOnly(D3D11_COMPARISON_FUNC comparison = D3D11_COMPARISON_LESS) {
+		DepthTest(true, false, comparison);
+	}
+	void NoDepthTest() {
+		DepthTest(false);
+	}
+};
+
 class Drawer
 {
+	friend class DeviceManager;
 private:
 	DeviceManager* manager;
 	ID3D11Buffer* lastVB;
 	ID3D11Buffer* lastIB;
+	Buffer* screenVB;
+
+	void InitializeVertexes() {
+		float2 screenVertexes[6] = { float2(-1,-1), float2(1,-1), float2(1,1), float2(-1,-1), float2(1,1), float2(-1,1) };
+		screenVB = manager->builder->VertexBuffer<float2>(screenVertexes, 6);
+	}
 public:
-	Drawer(DeviceManager* manager) { this->manager = manager; }
+	Drawer(DeviceManager* manager) {
+		this->manager = manager;
+	}
+
+	DeviceManager* Screen() {
+		return Primitive(screenVB, 0, 6);
+	}
 
 	DeviceManager* Primitive(const Buffer* vb, const Buffer* ib, int start = 0, int count = MAXINT, D3D11_PRIMITIVE_TOPOLOGY topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST)
 	{
@@ -1309,10 +1393,12 @@ public:
 	}
 };
 
-DeviceManager::DeviceManager(ID3D11Device* device) : setter(new Setter(this)), builder(new Builder(this)), loader(new Loader(this)), clearing(new Clearing(this)), drawer(new Drawer(this))
+DeviceManager::DeviceManager(ID3D11Device* device) : loader(new Loader(this)), setter(new Setter(this)), builder(new Builder(this)), clearing(new Clearing(this)), drawer(new Drawer(this))
 {
 	this->device = device;
 	device->GetImmediateContext(&this->context);
+	this->setter->InitializeShader();
+	this->drawer->InitializeVertexes();
 };
 
 void DeviceManager::Dispatch(int xCount, int yCount, int zCount)
@@ -1320,6 +1406,17 @@ void DeviceManager::Dispatch(int xCount, int yCount, int zCount)
 	if (this->cs != nullptr)
 		this->cs->UpdateLocal();
 	context->Dispatch(xCount, yCount, zCount);
+}
+
+void DeviceManager::Show(PixelShaderBinding *ps, int width, int height)
+{
+	setter->Pipeline(ps);
+	setter->Viewport(width, height);
+	setter->Fill(D3D11_FILL_SOLID);
+	setter->Cull(D3D11_CULL_NONE);
+	setter->NoDepthTest();
+
+	drawer->Screen();
 }
 
 class Executable {
@@ -1342,6 +1439,9 @@ protected:
 	template<typename P>
 	void Run(P* process) {
 		((Executable*)process)->Execute();
+	}
+	void Show(PixelShaderBinding *ps, int width, int height) {
+		manager->Show(ps, width, height);
 	}
 	inline void Dispatch(int xCount, int yCount, int zCount) {
 		manager->Dispatch(xCount, yCount, zCount);

@@ -6,8 +6,8 @@
 #define load this->loader->
 #define clear this->clearing->
 #define draw this->drawer->
-#define draw_triangles(vb,n) this->Draw (vb, n, TRIANGLES)
 #define run(p) this->Run(p)
+#define show(ps, width, height) this->Show(ps, width, height)
 #define dispatch1D(x) this->Dispatch(x,1,1);
 #define dispatch2D(x,y) this->Dispatch(x,y,1);
 #define dispatch3D(x,y,z) this->Dispatch(x,y,z);

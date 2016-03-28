@@ -64,6 +64,42 @@ struct SGC_VERTEX {
 	int TriangleIndex;
 };
 
+struct SG_Projection_Global {
+	float4x4 Projection;
+};
+
+class SG_Projection_VS : public VertexShaderBinding {
+protected:
+	void Load() {
+		LoadCode("Shaders\\SG_Projection_VS.cso");
+
+		// Define the input layout
+		D3D11_INPUT_ELEMENT_DESC layout[] =
+		{
+			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+			{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+			{ "MATERIALINDEX", 0, DXGI_FORMAT_R32_SINT, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+			{ "TRIANGLEINDEX", 0, DXGI_FORMAT_R32_SINT, 0, 36, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		};
+		UINT numElements = ARRAYSIZE(layout);
+
+		LoadInputLayout(layout, numElements);
+	}
+	void OnGlobal() {
+		CB(0, Globals);
+	}
+public:
+	Buffer* Globals;
+};
+
+struct ShowSG_Lighting {
+	float3 Position;
+	float rem0;
+	float3 Intensity;
+	float rem1;
+};
+
 class SceneGeometryConstructionProcess : public SceneProcess<NoDescription>
 {
 private:
@@ -73,19 +109,20 @@ private:
 
 protected:
 	void Initialize() {
-		vs = load Shader<SGC_VS>();
-		gs = load Shader<SGC_GS>();
-		ps = load Shader<SGC_PS>();
+		load Shader(vs);
+		load Shader(gs);
+		load Shader(ps);
 		vs->Locals = create ConstantBuffer<SGC_CB>();
 		ps->Malloc = create StructuredBuffer<int>(1);
 	}
 	void Execute() {
+		clear UAV(ps->Malloc);
+
 		set Pipeline(vs, gs, ps);
 		set Viewport(1, 1);
 		set Fill(solid);
 		set Cull(none);
 		set NoDepthTest();
-		clear UAV(ps->Malloc);
 
 		static SGC_CB VS_CB;
 

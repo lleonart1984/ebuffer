@@ -62,6 +62,12 @@
     <ClInclude Include="Processes\DebugSGC.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Processes\LLABufferProcess.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Processes\DebugAB.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -103,7 +109,22 @@
     <FxCompile Include="Shaders\ShowSG_PS.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
-    <FxCompile Include="Shaders\ShowSG_VS.hlsl">
+    <FxCompile Include="Shaders\LLABuffer_PS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\SG_Projection_VS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\ConservativeRasterization_GS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\AllocationAndSort_CS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\__Screen_VS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\ShowAB_PS.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>

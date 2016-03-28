@@ -46,6 +46,7 @@ void main(GS_OUT In)
 {
 	int pos;
 	InterlockedAdd(Malloc[0], 3, pos);
+
 	int MI = In.M;
 	TransformedVertex temp = (TransformedVertex)0;
 	temp.MaterialIndex = MI;

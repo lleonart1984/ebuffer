@@ -117,8 +117,8 @@ protected:
 		// Creates DepthBuffer
 		DrawSceneProcess::Initialize();
 
-		ps = load Shader<BasicPS>();
-		vs = load Shader<BasicVS>();
+		load Shader(ps);
+		load Shader(vs);
 
 		Globals = create ConstantBuffer<GlobalTransforms>();
 		Locals = create ConstantBuffer<LocalTransforms>();

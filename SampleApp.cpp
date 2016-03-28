@@ -13,7 +13,8 @@
 
 #define BASIC 1
 #define Debug_SGC 2
-#define USED_PROCESS Debug_SGC
+#define Debug_AB 3
+#define USED_PROCESS Debug_AB
 
 // Global Variables:
 HINSTANCE hInst;                                // current instance
@@ -81,6 +82,9 @@ void InitializeProcess() {
 		break;
 	case Debug_SGC:
 		process = presenter->Load<DebugSGCProcess>(ScreenDescription(backBuffer->getWidth(), backBuffer->getHeight()));
+		break;
+	case Debug_AB:
+		process = presenter->Load<DebugABProcess>(ScreenDescription(backBuffer->getWidth(), backBuffer->getHeight()));
 		break;
 	}
 	process->RenderTarget = backBuffer;
@@ -364,7 +368,7 @@ void ComputeFPS() {
 
 	if (GetTimming() > nextShow)
 	{
-		FPS = t > 0 ? frameCount / t : 0;
+		FPS = 1000*t / frameCount;// t > 0 ? frameCount / t : 0;
 
 		nextShow += 1;
 	}

@@ -191,8 +191,8 @@ public:
 	}
 	void GetMatrices(int screenWidth, int screenHeight, float4x4 &view, float4x4 &projection)
 	{
-		view = LookAtLH(Position, Target, Up);
-		projection = PerspectiveFovLH(FoV, screenHeight / (float)screenWidth, NearPlane, FarPlane);
+		view = LookAtRH(Position, Target, Up);
+		projection = PerspectiveFovRH(FoV, screenHeight / (float)screenWidth, NearPlane, FarPlane);
 	}
 };
 

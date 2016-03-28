@@ -4,41 +4,7 @@
 #include "..\ca4GDSL.h"
 #include "SceneGeometryConstruction.h"
 
-struct ShowSG_Global {
-	float4x4 Projection;
-};
 
-class ShowSG_VS : public VertexShaderBinding {
-protected:
-	void Load() {
-		LoadCode("Shaders\\ShowSG_VS.cso");
-
-		// Define the input layout
-		D3D11_INPUT_ELEMENT_DESC layout[] =
-		{
-			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-			{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-			{ "MATERIALINDEX", 0, DXGI_FORMAT_R8_SINT, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-			{ "TRIANGLEINDEX", 0, DXGI_FORMAT_R8_SINT, 0, 36, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		};
-		UINT numElements = ARRAYSIZE(layout);
-
-		LoadInputLayout(layout, numElements);
-	}
-	void OnGlobal() {
-		CB(0, Globals);
-	}
-public:
-	Buffer* Globals;
-};
-
-struct ShowSG_Lighting {
-	float3 Position;
-	float rem0;
-	float3 Intensity;
-	float rem1;
-};
 
 class ShowSG_PS : public PixelShaderBinding {
 protected:
@@ -51,13 +17,15 @@ protected:
 		DB(DepthBuffer);
 		CB(0, Lighting);
 		SMP(0, Sampler);
-		SRV(0, Materials);
-		SRV(1, (Resource**)Textures, TextureCount);
+		SRV(0, Vertexes);
+		SRV(1, Materials);
+		SRV(2, (Resource**)Textures, TextureCount);
 	}
 public:
 	Texture2D* RenderTarget;
 	Texture2D* DepthBuffer;
 	Buffer* Lighting;
+	Buffer* Vertexes;
 	Buffer* Materials;
 	Texture2D** Textures;
 	int TextureCount;
@@ -66,7 +34,7 @@ public:
 
 class DebugSGCProcess : public DrawSceneProcess {
 private:
-	ShowSG_VS *vs;
+	SG_Projection_VS *vs;
 	ShowSG_PS *ps;
 	SceneGeometryConstructionProcess *process;
 	Sampler* sampler;
@@ -74,11 +42,11 @@ protected:
 	void Initialize() {
 		DrawSceneProcess::Initialize();
 
-		process = load Process<SceneGeometryConstructionProcess, NoDescription>(NoDescription());
-		vs = load Shader<ShowSG_VS>();
-		ps = load Shader<ShowSG_PS>();
+		load Process(process);
+		load Shader(vs);
+		load Shader(ps);
 
-		vs->Globals = create ConstantBuffer<ShowSG_Global>();
+		vs->Globals = create ConstantBuffer<SG_Projection_Global>();
 		ps->Lighting = create ConstantBuffer<ShowSG_Lighting>();
 		ps->Sampler = create BilinearSampler();
 	}
@@ -96,7 +64,7 @@ protected:
 		l.Intensity = scene->getLight()->Intensity;
 		ps->Lighting->Update(l);
 
-		ShowSG_Global g;
+		SG_Projection_Global g;
 		g.Projection = proj;
 		vs->Globals->Update(g);
 
@@ -122,5 +90,6 @@ public:
 	void SetScene(SScene *scene) {
 		this->DrawSceneProcess::SetScene(scene);
 		process->SetScene(scene);
+		ps->Vertexes = process->Out_Vertexes;
 	}
 };

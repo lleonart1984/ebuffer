@@ -6,3 +6,4 @@
 #include "ca4GDSL.h"
 #include "Processes\BasicProcess.h"
 #include "Processes\DebugSGC.h"
+#include "Processes\DebugAB.h"

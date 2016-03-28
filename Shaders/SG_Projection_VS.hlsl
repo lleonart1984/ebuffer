@@ -13,9 +13,15 @@ struct VS_OUT
 	float3 P : POSITION;
 	float3 N : NORMAL;
 	float2 C : TEXCOORD;
-	int MaterialIndex : MATERIALINDEX;
-	int TriangleIndex : TRIANGLEINDEX;
+	nointerpolation int MaterialIndex : MATERIALINDEX;
+	nointerpolation int TriangleIndex : TRIANGLEINDEX;
 };
+
+//struct VS_OUT
+//{
+//	float4 Proj : SV_POSITION;
+//	nointerpolation int TriangleIndex : TRIANGLEINDEX;
+//};
 
 cbuffer globaltransforms : register(b0)
 {
