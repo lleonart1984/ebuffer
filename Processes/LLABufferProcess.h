@@ -51,7 +51,7 @@ protected:
 	}
 };
 
-class AllocationAndSort_CS : public ComputeShaderBinding{
+class AllocationAndSort_PS : public PixelShaderBinding{
 public:
 	//UAVs
 	Texture2D* StartBuffer;
@@ -65,7 +65,7 @@ public:
 	Buffer* Fragments;
 protected:
 	void Load() {
-		LoadCode("Shaders\\AllocationAndSort_CS.cso");
+		LoadCode("Shaders\\AllocationAndSort_PS.cso");
 	}
 	void OnGlobal() {
 		SRV(0, CountBuffer);
@@ -234,8 +234,8 @@ protected:
 
 		// Compute allocation and sort
 		clear UAV(Malloc);
-		set Computation(allocatingAndSorting);
-		dispatch2D(Description.CubeLength * 6, Description.CubeLength);
+		
+		show (allocatingAndSorting, Description.CubeLength * 6, Description.CubeLength);
 	}
 private:
 	// Subprocess
@@ -244,7 +244,7 @@ private:
 	SG_Projection_VS *projectingSG;
 	LLABuffer_PS *creatingLL;
 	ConservativeRasterization_GS *conservativeRaster;
-	AllocationAndSort_CS *allocatingAndSorting;
+	AllocationAndSort_PS *allocatingAndSorting;
 	// Temp Buffers
 	Buffer* Malloc; // required to allocate indices arrays
 	Texture2D* FirstBuffer; // required during Linked List ABuffer

@@ -23,10 +23,9 @@ RWStructuredBuffer<int> mallocBuffer : register(u1);
 RWStructuredBuffer<int> indices : register(u2);
 RWStructuredBuffer<int> temp : register(u3);
 
-[numthreads(1, 1, 1)]
-void main( uint3 DTid : SV_DispatchThreadID )
+void main(float4 P : SV_POSITION, float2 C : TEXCOORD)
 {
-	uint2 coord = uint2(DTid.x, DTid.y);
+	uint2 coord = uint2(P.x, P.y);
 
 	/// Indices allocation in array
 	int count = countBuffer[coord];

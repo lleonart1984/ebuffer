@@ -50,7 +50,7 @@ float3 GetColor(int complexity) {
 	}
 }
 
-float4 main(float4 P : POSITION, float2 C : TEXCOORD) : SV_TARGET
+float4 main(float4 P : SV_POSITION, float2 C : TEXCOORD) : SV_TARGET
 {
 	uint2 coord = FromScreen(C);
 
