@@ -1333,6 +1333,8 @@ class Process : Executable
 	friend class DeviceManager;
 	friend class Presenter;
 	friend class Loader;
+private:
+	DeviceManager* manager;
 protected:
 	virtual void Initialize() { }
 	void Execute() { }
@@ -1351,7 +1353,7 @@ public:
 	Clearing* const clearing;
 	Drawer* const drawer;
 	const D Description;
-	Process(DeviceManager* manager, D description) :setter(manager->setter), builder(manager->builder), loader(manager->loader), clearing(manager->clearing), drawer(manager->drawer), Description(description) {
+	Process(DeviceManager* manager, D description) :manager(manager),setter(manager->setter), builder(manager->builder), loader(manager->loader), clearing(manager->clearing), drawer(manager->drawer), Description(description) {
 	}
 	~Process() {
 		Destroy();
