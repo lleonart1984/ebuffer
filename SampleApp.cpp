@@ -14,7 +14,8 @@
 #define BASIC 1
 #define Debug_SGC 2
 #define Debug_AB 3
-#define USED_PROCESS Debug_AB
+#define Debug_EB 4
+#define USED_PROCESS Debug_EB
 
 // Global Variables:
 HINSTANCE hInst;                                // current instance
@@ -39,6 +40,13 @@ bool ShowInfo = false;
 ULONGLONG CurrentTime = 0;
 bool TimeIsRunning = false;
 float FPS;
+enum DEBUG_INFO_MODE {
+	DEBUG_INFO_NONE,
+	DEBUG_INFO_LAYER,
+	DEBUG_INFO_FACE,
+	DEBUG_INFO_LEVEL
+};
+DEBUG_INFO_MODE DebugInfoChanging = DEBUG_INFO_MODE::DEBUG_INFO_LAYER;
 
 void InitializeScene(DeviceManager* manager)
 {
@@ -85,6 +93,9 @@ void InitializeProcess() {
 		break;
 	case Debug_AB:
 		process = presenter->Load<DebugABProcess>(ScreenDescription(backBuffer->getWidth(), backBuffer->getHeight()));
+		break;
+	case Debug_EB:
+		process = presenter->Load<DebugEBProcess>(ScreenDescription(backBuffer->getWidth(), backBuffer->getHeight()));
 		break;
 	}
 	process->RenderTarget = backBuffer;
@@ -286,6 +297,51 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case 0x49: // I
 			ShowInfo = !ShowInfo;
 			break;
+		case 0x46: // F
+			DebugInfoChanging = DEBUG_INFO_FACE;
+			break;
+		case 0x4B: // K
+			DebugInfoChanging = DEBUG_INFO_LEVEL;
+			break;
+		case 0x4C: // L
+			DebugInfoChanging = DEBUG_INFO_LAYER;
+			break;
+		case VK_ADD: // +
+		{
+			auto dp = dynamic_cast<DebugableProcess*>(process);
+			if (dp != nullptr)
+				switch (DebugInfoChanging)
+				{
+				case DEBUG_INFO_FACE:
+					dp->Debugging.FaceIndex = min(5, dp->Debugging.FaceIndex + 1);
+					break;
+				case DEBUG_INFO_LAYER:
+					dp->Debugging.LayerIndex++;
+					break;
+				case DEBUG_INFO_LEVEL:
+					dp->Debugging.Level++;
+					break;
+				}
+			break;
+		}
+		case VK_SUBTRACT: // -
+		{
+			auto dp = dynamic_cast<DebugableProcess*>(process);
+			if (dp != nullptr)
+				switch (DebugInfoChanging)
+				{
+				case DEBUG_INFO_FACE:
+					dp->Debugging.FaceIndex = max(0, dp->Debugging.FaceIndex - 1);
+					break;
+				case DEBUG_INFO_LAYER:
+					dp->Debugging.LayerIndex = max(0, dp->Debugging.LayerIndex - 1);
+					break;
+				case DEBUG_INFO_LEVEL:
+					dp->Debugging.Level = max(0, dp->Debugging.Level - 1);
+					break;
+				}
+			break;
+		}
 		}
 	}
 	break;
@@ -368,7 +424,7 @@ void ComputeFPS() {
 
 	if (GetTimming() > nextShow)
 	{
-		FPS = 1000*t / frameCount;// t > 0 ? frameCount / t : 0;
+		FPS = 1000 * t / frameCount;// t > 0 ? frameCount / t : 0;
 
 		nextShow += 1;
 	}
@@ -378,9 +434,41 @@ void Render()
 {
 	presenter->Run(process);
 
+	StopTimming();
+
 	if (ShowInfo)
-		presenter->DrawTextW(std::to_wstring(FPS).data());
-	
+	{
+		string s = "";
+		int value = 0;
+		auto p = dynamic_cast<DebugableProcess*>(process);
+		if (p != nullptr)
+			switch (DebugInfoChanging) {
+			case DEBUG_INFO_FACE:
+				s = "Face";
+				value = p->Debugging.FaceIndex;
+				break;
+			case DEBUG_INFO_LAYER:
+				s = "Layer";
+				value = p->Debugging.LayerIndex;
+				break;
+			case DEBUG_INFO_LEVEL:
+				s = "Level";
+				value = p->Debugging.Level;
+				break;
+			default:
+				s = "None";
+				value = 0;
+				break;
+			}
+
+		ostringstream o(ios_base::out);
+		o << "Changing " << s << " " << value;
+		presenter->WriteLine(o.str().data());
+		presenter->WriteLineW(std::to_wstring(FPS).data());
+	}
+
+	StartTimming();
+
 	presenter->Present();
 
 	ComputeFPS();

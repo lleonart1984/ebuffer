@@ -803,19 +803,31 @@ public:
 		process->Execute();
 	}
 
-	inline void Present() { swapChain->Present(0, 0); }
+	inline void Present() { swapChain->Present(0, 0); line = 0; }
 
-	void DrawText(const wchar_t* text) {
+	int line = 0;
+	
+	void WriteLine(const char* text) {
+		int count = strlen(text);
+		wchar_t *converted = new wchar_t[count+1];
+		OemToCharW(text, converted);
+		WriteLineW(converted);
+		delete[] converted;
+	}
+
+	void WriteLineW(const wchar_t* text) {
 		pRT->BeginDraw();
 
 		D2D_RECT_F r;
 		r.left = 20;
-		r.right = 200;
-		r.top = 20;
-		r.bottom = 120;
+		r.right = 2000;
+		r.top = 20 + line * 20;
+		r.bottom = 20 + (line + 1) * 20;
 		pRT->DrawTextW(text, lstrlenW(text), format, &r, solidColorBrush);
 
 		pRT->EndDraw();
+
+		line++;
 	}
 };
 

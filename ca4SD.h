@@ -904,6 +904,20 @@ struct ScreenDescription
 	ScreenDescription(int width, int height) :Width(width), Height(height) {}
 };
 
+struct DebugInfo {
+	int FaceIndex;
+
+	int LayerIndex;
+
+	int Level;
+
+	float __rem;
+};
+
+struct DebugableProcess {
+	DebugInfo Debugging;
+	virtual void Boo() const {}
+};
 class DrawSceneProcess : public SceneProcess<ScreenDescription> {
 protected:
 	void Initialize() {

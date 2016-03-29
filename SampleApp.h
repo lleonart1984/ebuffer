@@ -7,3 +7,4 @@
 #include "Processes\BasicProcess.h"
 #include "Processes\DebugSGC.h"
 #include "Processes\DebugAB.h"
+#include "Processes\DebugEB.h"

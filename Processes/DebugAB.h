@@ -5,6 +5,7 @@
 #include "SceneGeometryConstruction.h"
 #include "LLABufferProcess.h"
 
+
 class ShowAB_PS : public PixelShaderBinding {
 public :
 	Texture2D* RenderTarget;
@@ -15,6 +16,7 @@ public :
 	Buffer* Fragments;
 
 	Buffer* FaceInfoCB;
+	Buffer* DebugCB;
 protected:
 	void Load()
 	{
@@ -23,6 +25,7 @@ protected:
 	void OnGlobal() {
 		RT(RenderTarget);
 		CB(0, FaceInfoCB);
+		CB(1, DebugCB);
 		SRV(0, CountBuffer);
 		SRV(1, StartBuffer);
 		SRV(2, Indices);
@@ -30,7 +33,9 @@ protected:
 	}
 };
 
-class DebugABProcess : public DrawSceneProcess {
+
+
+class DebugABProcess : public DrawSceneProcess, public DebugableProcess {
 private:
 	ABufferConstructionProcess *constructingABuffer;
 	ShowAB_PS *ps;
@@ -47,6 +52,7 @@ protected:
 		ps->StartBuffer = constructingABuffer->StartBuffer;
 
 		ps->FaceInfoCB = create ConstantBuffer<FaceInfo>();
+		ps->DebugCB = create ConstantBuffer<DebugInfo>();
 	}
 	void Execute() {
 		float4x4 view;
@@ -62,7 +68,7 @@ protected:
 		faceInfo.ActiveFace = 5; // Negative Z
 		faceInfo.CubeLength = constructingABuffer->Description.CubeLength;
 		ps->FaceInfoCB->Update(faceInfo);
-		
+		ps->DebugCB->Update(Debugging);
 		show(ps, RenderTarget->getHeight(), RenderTarget->getHeight());
 	}
 public:

@@ -8,6 +8,13 @@ cbuffer FaceInfo : register (b0)
 	int CubeLength;
 }
 
+cbuffer DebugInfo : register(b1)
+{
+	int FaceIndex;
+
+	int LayerIndex;
+}
+
 struct Fragment {
 	int Index;
 	float MinDepth;
@@ -23,7 +30,7 @@ uint2 FromScreen(float2 c)
 {
 	uint px = c.x * CubeLength;
 	uint py = c.y * CubeLength;
-	return uint2 (px + CubeLength * ActiveFace, py);
+	return uint2 (px + CubeLength * FaceIndex, py);
 }
 
 float3 GetColor(int complexity) {
@@ -55,9 +62,9 @@ float4 main(float4 P : SV_POSITION, float2 C : TEXCOORD) : SV_TARGET
 	uint2 coord = FromScreen(C);
 
 	int count = countBuffer[coord];
-	if (count == 0)
+	if (count <= LayerIndex)
 		return float4(1, 0, 0.5,1);
-	return float4(Fragments[Indices[startBuffer[coord]]].MinDepth * float3(1, 1, 1)*0.1, 1);
+	return float4(Fragments[Indices[startBuffer[coord] + LayerIndex]].MinDepth * float3(1, 1, 1)*0.1, 1);
 
 	int complexity = countBuffer[coord];
 

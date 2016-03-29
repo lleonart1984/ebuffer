@@ -153,6 +153,7 @@ public:
 	Buffer* Indices;
 	Texture2D* StartBuffer;
 	Texture2D* CountBuffer;
+	Buffer* Malloc; // required to allocate indices arrays
 
 	float4x4 ViewMatrix;
 	
@@ -246,7 +247,6 @@ private:
 	ConservativeRasterization_GS *conservativeRaster;
 	AllocationAndSort_PS *allocatingAndSorting;
 	// Temp Buffers
-	Buffer* Malloc; // required to allocate indices arrays
 	Texture2D* FirstBuffer; // required during Linked List ABuffer
 	Buffer* NextBuffer; // required during Linked List ABuffer
 	Buffer* Temp; // required by bottom-up MergeSort algorithm
