@@ -12,11 +12,10 @@ struct Material
 {
 	float3 Diffuse;
 	float3 Specular;
-	float SpecularPower;
-	float3 Emissive;
-	int Opaque;
-	float ReflectionIndex;
+	float SpecularSharpness;
 	int TextureIndex;
+	float3 Emissive;
+	float4 Roulette; // x-diffuse, y-mirror, z-fresnell, w-reflection index
 };
 
 struct SGC_VERTEX {
@@ -66,8 +65,9 @@ Texture2D<float3> Textures[32]			: register(t2);
 
 float3 main(PS_IN input) : SV_TARGET
 {
-	float depthSample = -Vertexes[input.TriangleIndex * 3].P.z;
-	return depthSample * (1, 1, 1)*0.1;
+	input.C.y = 1 - input.C.y;
+	/*float depthSample = -Vertexes[input.TriangleIndex * 3].P.z;
+	return depthSample * (1, 1, 1)*0.1;*/
 
 	//return GetColor(input.TriangleIndex/10);
 
@@ -117,5 +117,5 @@ float3 main(PS_IN input) : SV_TARGET
 
 	float3 H = normalize(V + L);
 
-	return ((m.Diffuse * saturate(dot(input.N, L)) + 0.3) * sampledColor + m.Specular * pow(saturate(dot(input.N, H)), m.SpecularPower))*LightIntensity / (D * D);
+	return ((m.Diffuse * saturate(dot(input.N, L))) * sampledColor + m.Specular * pow(saturate(dot(input.N, H)), m.SpecularSharpness))*LightIntensity / (D * D);
 }

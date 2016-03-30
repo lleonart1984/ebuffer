@@ -35,7 +35,7 @@ VS_OUT main(VS_IN input)
 	output.Proj = mul(float4(input.P, 1), projection);
 	output.P = input.P;
 	output.N = input.N;
-	output.C = float2(input.C.x, 1-input.C.y);
+	output.C = input.C;
 	output.MaterialIndex = input.MaterialIndex;
 	output.TriangleIndex = input.TriangleIndex;
 

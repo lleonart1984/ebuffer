@@ -39,7 +39,7 @@ float4 main(PS_INPUT input) : SV_Target
 
 	float3 H = normalize(V + L);
 
-	float3 lighting = ((diffuse * saturate(dot(input.N, L)) + 0.3) * tex + specular * pow(saturate(dot(input.N, H)), power))*LightIntensity / (D * D);
+	float3 lighting = ((diffuse * saturate(dot(input.N, L))) * tex + specular * pow(saturate(dot(input.N, H)), power))*LightIntensity / (D * D);
 
 	return float4(lighting,1);
 	//return float4(input.C, 0, 1);

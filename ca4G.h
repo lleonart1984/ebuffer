@@ -76,7 +76,7 @@ public:
 
 	void Dispatch(int xCount, int yCount, int zCount);
 
-	void Show(PixelShaderBinding *ps, int width, int height);
+	void Perform(PixelShaderBinding *ps, int width, int height);
 };
 
 class Resource
@@ -1047,7 +1047,7 @@ public:
 
 	template<class T> Texture2D* Texture(int width, int height,
 		D3D11_USAGE usage = D3D11_USAGE_DEFAULT,
-		D3D11_BIND_FLAG flags = (D3D11_BIND_FLAG)(D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS))
+		D3D11_BIND_FLAG flags = (D3D11_BIND_FLAG)(D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_RENDER_TARGET))
 	{
 		ID3D11Texture2D* texture;
 
@@ -1168,18 +1168,30 @@ class Setter
 private:
 	DeviceManager* manager;
 	D3D11_RASTERIZER_DESC rasterizer;
+	D3D11_DEPTH_STENCIL_DESC depth;
+	D3D11_BLEND_DESC blending;
+
+	D3D11_RASTERIZER_DESC default_rasterizer;
+	D3D11_DEPTH_STENCIL_DESC default_depth;
+	D3D11_BLEND_DESC default_blending;
+
 	void Setter::UpdateRasterizerState() {
 		ID3D11RasterizerState *rs;
 		manager->getDevice()->CreateRasterizerState(&rasterizer, &rs);
 		manager->getContext()->RSSetState(rs);
-		rs->Release();
 	}
 
-	D3D11_DEPTH_STENCIL_DESC depth;
 	void UpdateDepthTestState() {
 		ID3D11DepthStencilState *ds;
 		manager->getDevice()->CreateDepthStencilState(&depth, &ds);
 		manager->getContext()->OMSetDepthStencilState(ds, 0);
+	}
+
+	float blendFactor[4];
+	void UpdateBlending() {
+		ID3D11BlendState *bs;
+		manager->getDevice()->CreateBlendState(&blending, &bs);
+		manager->getContext()->OMSetBlendState(bs, blendFactor, 0xFFFFFFFF);
 	}
 
 	__Screen_VS *screenVS;
@@ -1192,7 +1204,8 @@ public:
 		this->manager = manager;
 		ZeroMemory(&rasterizer, sizeof(D3D11_RASTERIZER_DESC));
 		rasterizer.FillMode = D3D11_FILL_SOLID;
-		rasterizer.CullMode = D3D11_CULL_BACK;
+		rasterizer.CullMode = D3D11_CULL_NONE;
+		default_rasterizer = rasterizer;
 
 		ZeroMemory(&depth, sizeof(D3D11_DEPTH_STENCIL_DESC));
 		depth.DepthEnable = true;
@@ -1204,9 +1217,35 @@ public:
 		depth.FrontFace.StencilFunc = depth.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
 		depth.FrontFace.StencilPassOp = depth.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
 		depth.FrontFace.StencilFailOp = depth.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+		default_depth = depth;
+
+		ZeroMemory(&blending, sizeof(D3D11_BLEND_DESC));
+		blending.AlphaToCoverageEnable = false;
+		blending.IndependentBlendEnable = false;
+		blending.RenderTarget[0].BlendEnable = false;
+		blending.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+		blending.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+		blending.RenderTarget[0].DestBlend = D3D11_BLEND_ZERO;
+		blending.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
+		blending.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+		blending.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
+		blending.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE; 
+		default_blending = blending;
 	}
 	~Setter() {
 		delete screenVS;
+	}
+
+	inline Setter* Clean()
+	{
+		depth = default_depth;
+		UpdateDepthTestState();
+		rasterizer = default_rasterizer;
+		UpdateRasterizerState();
+		blending = default_blending;
+		ZeroMemory(blendFactor,16);
+		UpdateBlending();
+		return this;
 	}
 
 	inline DeviceManager* Viewport(float width, float height)
@@ -1296,29 +1335,60 @@ public:
 		return Pipeline(screenVS, ps);
 	}
 
-	void Fill(D3D11_FILL_MODE mode)
+	DeviceManager* Fill(D3D11_FILL_MODE mode)
 	{
 		rasterizer.FillMode = mode;
 		UpdateRasterizerState();
+		return manager;
 	}
 
-	void Cull(D3D11_CULL_MODE mode)
+	DeviceManager* Cull(D3D11_CULL_MODE mode)
 	{
 		rasterizer.CullMode = mode;
 		UpdateRasterizerState();
+		return manager;
 	}
 
-	void DepthTest(bool enable = true, bool write = true, D3D11_COMPARISON_FUNC comparison = D3D11_COMPARISON_LESS) {
+	DeviceManager* Blending(D3D11_BLEND src = D3D11_BLEND_SRC_ALPHA, D3D11_BLEND dst = D3D11_BLEND_INV_SRC_ALPHA, D3D11_BLEND_OP op = D3D11_BLEND_OP_ADD, int target = 0)
+	{
+		blending.RenderTarget[target].BlendEnable = true;
+		blending.RenderTarget[target].BlendOp = op;
+		blending.RenderTarget[target].SrcBlend = src;
+		blending.RenderTarget[target].DestBlend = dst;
+		UpdateBlending();
+		return manager;
+	}
+
+	DeviceManager* BlendingAlpha(D3D11_BLEND src = D3D11_BLEND_SRC_ALPHA, D3D11_BLEND dst = D3D11_BLEND_INV_SRC_ALPHA, D3D11_BLEND_OP op = D3D11_BLEND_OP_ADD, int target = 0)
+	{
+		blending.RenderTarget[target].BlendEnable = true;
+		blending.RenderTarget[target].BlendOpAlpha = op;
+		blending.RenderTarget[target].SrcBlendAlpha = src;
+		blending.RenderTarget[target].DestBlendAlpha = dst;
+		UpdateBlending();
+		return manager;
+	}
+
+	DeviceManager* NoBlending(int target = 0) {
+		blending.RenderTarget[target].BlendEnable = true;
+		UpdateBlending();
+		return manager;
+	}
+
+	DeviceManager* DepthTest(bool enable = true, bool write = true, D3D11_COMPARISON_FUNC comparison = D3D11_COMPARISON_LESS) {
 		depth.DepthEnable = enable;
 		depth.DepthWriteMask = write ? D3D11_DEPTH_WRITE_MASK_ALL : D3D11_DEPTH_WRITE_MASK_ZERO;
 		depth.DepthFunc = comparison;
 		UpdateDepthTestState();
+		return manager;
 	}
-	void DepthTestOnly(D3D11_COMPARISON_FUNC comparison = D3D11_COMPARISON_LESS) {
+	DeviceManager* DepthTestOnly(D3D11_COMPARISON_FUNC comparison = D3D11_COMPARISON_LESS) {
 		DepthTest(true, false, comparison);
+		return manager;
 	}
-	void NoDepthTest() {
+	DeviceManager* NoDepthTest() {
 		DepthTest(false);
+		return manager;
 	}
 };
 
@@ -1420,12 +1490,11 @@ void DeviceManager::Dispatch(int xCount, int yCount, int zCount)
 	context->Dispatch(xCount, yCount, zCount);
 }
 
-void DeviceManager::Show(PixelShaderBinding *ps, int width, int height)
+void DeviceManager::Perform(PixelShaderBinding *ps, int width, int height)
 {
+	setter->Clean();
 	setter->Pipeline(ps);
 	setter->Viewport(width, height);
-	setter->Fill(D3D11_FILL_SOLID);
-	setter->Cull(D3D11_CULL_NONE);
 	setter->NoDepthTest();
 
 	drawer->Screen();
@@ -1452,8 +1521,8 @@ protected:
 	void Run(P* process) {
 		((Executable*)process)->Execute();
 	}
-	void Show(PixelShaderBinding *ps, int width, int height) {
-		manager->Show(ps, width, height);
+	void Perform(PixelShaderBinding *ps, int width, int height) {
+		manager->Perform(ps, width, height);
 	}
 	inline void Dispatch(int xCount, int yCount, int zCount) {
 		manager->Dispatch(xCount, yCount, zCount);

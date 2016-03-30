@@ -8,3 +8,4 @@
 #include "Processes\DebugSGC.h"
 #include "Processes\DebugAB.h"
 #include "Processes\DebugEB.h"
+#include "Processes\RTProcess.h"

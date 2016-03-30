@@ -69,7 +69,7 @@ protected:
 		faceInfo.CubeLength = constructingABuffer->Description.CubeLength;
 		ps->FaceInfoCB->Update(faceInfo);
 		ps->DebugCB->Update(Debugging);
-		show(ps, RenderTarget->getHeight(), RenderTarget->getHeight());
+		perform(ps, RenderTarget->getHeight(), RenderTarget->getHeight());
 	}
 public:
 	DebugABProcess(DeviceManager *manager, ScreenDescription description) :DrawSceneProcess(manager, description) {}

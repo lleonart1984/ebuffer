@@ -92,7 +92,8 @@ struct MaterialCB
 	float3 rem1;
 };
 
-struct LightingCB {
+
+struct BasicLightingCB {
 	float3 Position;
 	float rem0;
 	float3 Intensity;
@@ -104,12 +105,6 @@ class BasicProcess : public DrawSceneProcess
 private:
 	BasicVS* vs;
 	BasicPS* ps;
-	Buffer* Globals;
-	Buffer* Locals;
-	Buffer* Lighting;
-	Buffer* Material;
-	Texture2D* texture;
-	Sampler* sampling;
 protected:
 
 	void Initialize()
@@ -120,28 +115,24 @@ protected:
 		load Shader(ps);
 		load Shader(vs);
 
-		Globals = create ConstantBuffer<GlobalTransforms>();
-		Locals = create ConstantBuffer<LocalTransforms>();
+		vs->Globals = create ConstantBuffer<GlobalTransforms>();
+		vs->Locals = create ConstantBuffer<LocalTransforms>();
 
-		Lighting = create ConstantBuffer<LightingCB>();
-		Material = create ConstantBuffer<MaterialCB>();
+		ps->Lighting = create ConstantBuffer<BasicLightingCB>();
+		ps->Material = create ConstantBuffer<MaterialCB>();
 
-		sampling = create Sampler(D3D11_FILTER_MIN_MAG_MIP_LINEAR, D3D11_TEXTURE_ADDRESS_MIRROR, D3D11_TEXTURE_ADDRESS_MIRROR, D3D11_TEXTURE_ADDRESS_MIRROR);
-
-		vs->Globals = Globals;
-		vs->Locals = Locals;
-
-		ps->Lighting = Lighting;
-		ps->Material = Material;
-		ps->Sampling = sampling;
+		ps->Sampling = create Sampler(D3D11_FILTER_MIN_MAG_MIP_LINEAR, D3D11_TEXTURE_ADDRESS_MIRROR, D3D11_TEXTURE_ADDRESS_MIRROR, D3D11_TEXTURE_ADDRESS_MIRROR);
 		//texture = load Texture("seafloor.dds");
 	}
 
 	void Destroy() {
+		delete ps->Lighting;
+		delete ps->Material;
+		delete ps->Sampling;
+		delete vs->Globals;
+		delete vs->Locals;
 		delete vs;
 		delete ps;
-		delete Globals;
-		delete Locals;
 	}
 
 	void Execute()
@@ -155,7 +146,7 @@ protected:
 		GlobalTransforms globals(view, projection);
 		vs->Globals->Update(globals);
 
-		LightingCB Lighting;
+		BasicLightingCB Lighting;
 		Lighting.Intensity = scene->getLight()->Intensity;
 		Lighting.Position = xyz(mul(float4(scene->getLight()->Position, 1), view));
 		ps->Lighting->Update(Lighting);
@@ -163,14 +154,11 @@ protected:
 		// Binds render target and depth buffer before setting on pipeline
 		ps->RenderTarget = RenderTarget;
 		ps->DepthBuffer = DepthBuffer;
-		set Pipeline(vs, ps);
-		set Viewport(RenderTarget->getWidth(), RenderTarget->getHeight());
-		set Fill(solid);
-		set Cull(none);
+		set clean Pipeline(vs, ps) with Viewport(RenderTarget->getWidth(), RenderTarget->getHeight());
 
 		float4 backColor = scene->getBackColor();
 		clear RTV(RenderTarget, (float*)&backColor);
-		clear Depth(DepthBuffer, 1);
+		clear Depth(DepthBuffer);
 
 		for (int i = 0; i < scene->Length(); i++)
 		{
@@ -185,7 +173,7 @@ protected:
 			{
 				Material.Diffuse = mat->Diffuse;
 				Material.Specular = mat->Specular;
-				Material.Power = mat->SpecularPower;
+				Material.Power = mat->SpecularSharpness;
 				Material.TextureIndex = mat->TextureIndex;
 				ps->Texture = scene->getTexture(mat->TextureIndex);
 			}

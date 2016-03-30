@@ -32,6 +32,13 @@ public:
 	Sampler* Sampler;
 };
 
+struct SGCLightingCB {
+	float3 Position;
+	float rem0;
+	float3 Intensity;
+	float rem1;
+};
+
 class DebugSGCProcess : public DrawSceneProcess {
 private:
 	SG_Projection_VS *vs;
@@ -47,7 +54,7 @@ protected:
 		load Shader(ps);
 
 		vs->Globals = create ConstantBuffer<SG_Projection_Global>();
-		ps->Lighting = create ConstantBuffer<ShowSG_Lighting>();
+		ps->Lighting = create ConstantBuffer<SGCLightingCB>();
 		ps->Sampler = create BilinearSampler();
 	}
 	void Execute() {
@@ -59,8 +66,8 @@ protected:
 		process->In_ViewMatrix = view;
 		run(process);
 
-		ShowSG_Lighting l;
-		l.Position = scene->getLight()->Position;
+		SGCLightingCB l;
+		l.Position = xyz(mul(float4(scene->getLight()->Position, 1), view));
 		l.Intensity = scene->getLight()->Intensity;
 		ps->Lighting->Update(l);
 
@@ -74,11 +81,8 @@ protected:
 
 		ps->RenderTarget = RenderTarget;
 		ps->DepthBuffer = DepthBuffer;
-		set Pipeline(vs, ps);
-		set Viewport(RenderTarget->getWidth(), RenderTarget->getHeight());
-		set Fill(solid);
-		set Cull(none);
-		set DepthTest();
+		set clean Pipeline(vs, ps)
+			with Viewport(RenderTarget->getWidth(), RenderTarget->getHeight());
 
 		clear Depth(DepthBuffer);
 		clear RTV(RenderTarget, scene->getBackColor());

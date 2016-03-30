@@ -57,7 +57,7 @@ float4 main(float4 proj : SV_POSITION, float2 C : TEXCOORD) : SV_TARGET
 	case 11: startIndex = startEB[11][coord >> Level]; break;
 	}
 
-	if (LayerIndex >= countBuffer[coord >> Level << Level])
+	if (LayerIndex >= countBuffer[coord >> Level << Level]-1)
 		return float4 (0,0,1,1);
 
 	Range range = ranges[startIndex + LayerIndex];

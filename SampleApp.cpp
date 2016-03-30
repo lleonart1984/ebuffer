@@ -15,7 +15,8 @@
 #define Debug_SGC 2
 #define Debug_AB 3
 #define Debug_EB 4
-#define USED_PROCESS Debug_EB
+#define Debug_RT 5
+#define USED_PROCESS Debug_RT
 
 // Global Variables:
 HINSTANCE hInst;                                // current instance
@@ -28,7 +29,9 @@ ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
+void StartTimming();
 void Render();
+float GetTimming();
 
 // Rendering System
 Presenter *presenter;
@@ -40,6 +43,9 @@ bool ShowInfo = false;
 ULONGLONG CurrentTime = 0;
 bool TimeIsRunning = false;
 float FPS;
+ULONGLONG frameCount = 0;
+float nextShow;
+
 enum DEBUG_INFO_MODE {
 	DEBUG_INFO_NONE,
 	DEBUG_INFO_LAYER,
@@ -60,7 +66,7 @@ void InitializeScene(DeviceManager* manager)
 	scene->getCamera()->FarPlane = 1000;
 
 	// Light setup
-	scene->getLight()->Position = float3(1, 14, -6);
+	scene->getLight()->Position = float3(0, 14, 0);
 	scene->getLight()->Intensity = float3(100, 100, 100);
 
 	// Back color
@@ -80,6 +86,18 @@ void InitializeScene(DeviceManager* manager)
 	default:
 		break;
 	}
+
+	int matToMod = 17;//sponza floor
+	//int matToMod = 0;
+
+	if (scene->MaterialCount() > matToMod)
+	{
+		MATERIAL* m = scene->getMaterial(matToMod);
+		//m->Diffuse = float3(1, 0, 1);
+		m->Specular = float3(1, 1, 1);
+		m->SpecularSharpness = 40;
+		m->Roulette = float4(0.6, 0.8, 0, 0.66); // Mirror
+	}
 }
 
 void InitializeProcess() {
@@ -96,6 +114,9 @@ void InitializeProcess() {
 		break;
 	case Debug_EB:
 		process = presenter->Load<DebugEBProcess>(ScreenDescription(backBuffer->getWidth(), backBuffer->getHeight()));
+		break;
+	case Debug_RT:
+		process = presenter->Load<RTProcess>(ScreenDescription(backBuffer->getWidth(), backBuffer->getHeight()));
 		break;
 	}
 	process->RenderTarget = backBuffer;
@@ -306,6 +327,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case 0x4C: // L
 			DebugInfoChanging = DEBUG_INFO_LAYER;
 			break;
+		case 0x52: // R
+			CurrentTime = GetTickCount64();
+			frameCount = 1;
+			nextShow = GetTimming();
+			StartTimming();
+			break;
 		case VK_ADD: // +
 		{
 			auto dp = dynamic_cast<DebugableProcess*>(process);
@@ -414,12 +441,8 @@ void ComputeFPS() {
 		started = true;
 	}
 
-	static float nextShow = GetTimming() + 0;
-
 	float t = GetTimming();
-
-	static ULONGLONG frameCount = 0;
-
+	
 	frameCount++;
 
 	if (GetTimming() > nextShow)

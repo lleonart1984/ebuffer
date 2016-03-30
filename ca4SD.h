@@ -21,18 +21,16 @@ typedef struct MATERIAL
 public:
 	float3 Diffuse;
 	float3 Specular;
-	float SpecularPower;
-	float3 Emissive;
-	bool Opaque;
-	float ReflectionIndex;
+	float SpecularSharpness;
 	int TextureIndex;
+	float3 Emissive;
+	float4 Roulette; // x-diffuse, y-mirror, z-fresnell, w-reflection index
 	MATERIAL()
 	{
-		Diffuse = float3(0, 0, 0);
-		Specular = float3(0, 0, 0);
-		SpecularPower = 1;
-		Opaque = true;
-		ReflectionIndex = 1;
+		Diffuse = float3(1, 1, 1);
+		Specular = float3(1, 1, 1);
+		SpecularSharpness = 40;
+		Roulette = float4(1, 0, 0, 1);
 		TextureIndex = -1;
 	}
 } MATERIAL;
@@ -494,7 +492,7 @@ private:
 						{
 							float power;
 							t.readFloatToken(power);
-							activeMaterial->SpecularPower = power;
+							activeMaterial->SpecularSharpness = power;
 							t.skipCurrentLine();
 						}
 						else
@@ -584,11 +582,6 @@ public:
 	{
 		materialNames.Add("default");
 		M* defaultMaterial= new M();
-		defaultMaterial->Diffuse = float3(0.5, 0.1, 0.8);
-		defaultMaterial->Specular = float3(1, 1, 1);
-		defaultMaterial->SpecularPower = 40;
-		defaultMaterial->TextureIndex = -1;
-
 		materials.Add(defaultMaterial);
 	}
 	~Scene()
@@ -633,7 +626,6 @@ public:
 		return textures.get(index);
 	}
 	inline int TextureCount() { return textures.getCount(); }
-
 	void LoadObj(const char* filePath, float scale = 1)
 	{
 		List<float3> positions;
@@ -748,133 +740,6 @@ public:
 
 		delete[] vertices;
 	}
-
-	/*
-	void ReadFaceIndices(string stream, List<int> &posIndices, List<int> &texIndices, List<int> &norIndices)
-	{
-		int indexRead = 0;
-		int pos = 0;
-		int type = 0;
-		int l = stream.length();
-		for (int i = 0; i<l; i++)
-		{
-			char c = stream[i];
-
-			if (c == '/')
-			{
-				switch (type)
-				{
-				case 0: addIndex(posIndices, indexRead, pos);
-					break;
-				case 1: addIndex(texIndices, indexRead, pos);
-					break;
-				case 2: addIndex(norIndices, indexRead, pos);
-					break;
-				}
-				type++;
-				indexRead = 0;
-			}
-
-			if (c == ' ')
-			{
-				switch (type)
-				{
-				case 0: addIndex(posIndices, indexRead, pos);
-					break;
-				case 1: addIndex(texIndices, indexRead, pos);
-					break;
-				case 2: addIndex(norIndices, indexRead, pos);
-					break;
-				}
-				pos++;
-				type = 0;
-				indexRead = 0;
-			}
-
-			if (c >= '0' && c <= '9')
-			{
-				indexRead = indexRead * 10 + (c - '0');
-			}
-		}
-		if (indexRead != 0)
-			switch (type)
-			{
-			case 0: addIndex(posIndices, indexRead, pos);
-				break;
-			case 1: addIndex(texIndices, indexRead, pos);
-				break;
-			case 2: addIndex(norIndices, indexRead, pos);
-				break;
-			}
-	}
-
-	void LoadObj(const char* filePath, float scale = 1)
-	{
-		ifstream file(filePath, ios::in);
-
-		List<float3> positions;
-		List<float3> normals;
-		List<float2> texcoords;
-
-		List<int> positionIndices;
-		List<int> textureIndices;
-		List<int> normalIndices;
-
-		string line;
-		while (std::getline(file, line))
-		{
-			if (line.substr(0, 2) == "v ") {
-				istringstream v(line.substr(2));
-				float3 pos;
-				v >> pos.x; v >> pos.y; v >> pos.z;
-				positions.Add(pos * scale);
-			}
-
-			if (line.substr(0, 3) == "vn ") {
-				istringstream v(line.substr(3));
-				float3 nor;
-				v >> nor.x; v >> nor.y; v >> nor.z;
-				normals.Add(nor);
-			}
-
-			if (line.substr(0, 3) == "vt ") {
-				istringstream v(line.substr(3));
-				float2 coord;
-				v >> coord.x; v >> coord.y;
-				texcoords.Add(coord);
-			}
-
-			if (line.substr(0, 2) == "f ")
-			{
-				string s = line.substr(2);
-				ReadFaceIndices(s, positionIndices, textureIndices, normalIndices);
-			}
-		}
-
-		V* vertices = new V[positionIndices.getCount()];
-
-		for (int i = 0; i<positionIndices.getCount(); i++)
-			vertices[i].Position = positions[positionIndices[i]];
-		for (int i = 0; i<normalIndices.getCount(); i++)
-		{
-			int ni = normalIndices[i];
-			if (ni >= 0 && ni < normals.getCount())
-				vertices[i].Normal = normals[ni];
-			else
-			{
-				ni = ni;
-			}
-		}
-		for (int i = 0; i<textureIndices.getCount(); i++)
-		{
-			int ti = textureIndices[i];
-			if (ti >= 0 && ti < texcoords.getCount())
-				vertices[i].Coordinates = texcoords[ti];
-		}
-		this->AddVisual(vertices, positionIndices.getCount(), -1);
-
-		delete[] vertices;
-	}*/
 };
 
 #define SScene Scene<VERTEX, MATERIAL>

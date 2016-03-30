@@ -93,13 +93,6 @@ public:
 	Buffer* Globals;
 };
 
-struct ShowSG_Lighting {
-	float3 Position;
-	float rem0;
-	float3 Intensity;
-	float rem1;
-};
-
 class SceneGeometryConstructionProcess : public SceneProcess<NoDescription>
 {
 private:
@@ -118,11 +111,9 @@ protected:
 	void Execute() {
 		clear UAV(ps->Malloc);
 
-		set Pipeline(vs, gs, ps);
-		set Viewport(1, 1);
-		set Fill(solid);
-		set Cull(none);
-		set NoDepthTest();
+		set clean Pipeline(vs, gs, ps)
+			with NoDepthTest()
+			with Viewport(1, 1);
 
 		static SGC_CB VS_CB;
 

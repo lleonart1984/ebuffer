@@ -26,7 +26,6 @@ public:
 	Buffer* Indices;
 	Texture2D* StartBuffer;
 	Texture2D* CountBuffer;
-
 protected:
 	void Load() {
 		LoadCode("Shaders\\EB_Level0_PS.cso");
@@ -98,6 +97,10 @@ public:
 	}
 	EBufferConstructionProcess(DeviceManager* manager, EBufferDescription description) :SceneProcess<EBufferDescription>(manager, description) {
 	}
+
+	inline ABufferConstructionProcess* ABuffer() const {
+		return constructingABuffer;
+	}
 protected:
 	void Initialize() {
 		load Process(constructingABuffer, ABufferDescription{ Description.getResolution() });
@@ -132,7 +135,7 @@ protected:
 		run(constructingABuffer);
 
 		// Create Level 0
-		show(buildingLevel0, Description.getResolution() * 6, Description.getResolution());
+		perform(buildingLevel0, Description.getResolution() * 6, Description.getResolution());
 
 		int width = Description.getResolution() * 6;
 		int height = Description.getResolution();
@@ -150,7 +153,7 @@ protected:
 			width /= 2;
 			height /= 2;
 
-			show(buildingLevelK, width, height);
+			perform(buildingLevelK, width, height);
 		}
 	}
 private:

@@ -162,6 +162,9 @@ public:
 		sgcProcess->SetScene(scene);
 		creatingLL->SceneGeometry = sgcProcess->Out_Vertexes;
 	}
+	inline SceneGeometryConstructionProcess* SceneGeometry() {
+		return sgcProcess;
+	}
 protected:
 	void Initialize() {
 		// Process to store Scene on the GPU
@@ -212,11 +215,8 @@ protected:
 		clear UAV(CountBuffer, 0u);
 		clear UAV(Malloc, 0u);
 
-		set Pipeline(projectingSG, conservativeRaster, creatingLL);
-		set Viewport(Description.CubeLength, Description.CubeLength);
-		set Cull(none);
-		set Fill(solid);
-		set NoDepthTest();
+		set clean Pipeline(projectingSG, conservativeRaster, creatingLL)
+			with Viewport(Description.CubeLength, Description.CubeLength);
 
 		for (int faceIndex = 0; faceIndex < 6; faceIndex++) 
 		{
@@ -236,7 +236,7 @@ protected:
 		// Compute allocation and sort
 		clear UAV(Malloc);
 		
-		show (allocatingAndSorting, Description.CubeLength * 6, Description.CubeLength);
+		perform(allocatingAndSorting, Description.CubeLength * 6, Description.CubeLength);
 	}
 private:
 	// Subprocess
