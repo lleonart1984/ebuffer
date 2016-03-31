@@ -36,6 +36,14 @@ StructuredBuffer<OccupiedRange> occupiedRanges	: register (t6);
 StructuredBuffer<Range> ranges					: register (t7);
 Texture2D<int> startEB[12]						: register (t8);
 
+static int rangeIndices[16] = { 0, 0, 1, 2, 3, 4, 4, 4, 5, 5, 6, 6, 7, 8, 9, 10 };
+static int frustumSizes[16] = { 1, 1, 2, 4, 8, 16, 16, 16, 32, 32, 64, 64, 128, 256, 512, 1024 };
+static int backToDown[16] = { 0, 0, -1, -1, -1, -1, -2, -3, -1, -2, -1, -2, -1, -1, -1, -1 };
+
+//static int rangeIndices[16] = { 0, 0, 1, 2, 3, 4, 5, 6, 7, 7, 7, 8, 8, 8, 9, 10 };
+//static int frustumSizes[16] = { 1, 1, 1, 2, 4, 8, 32, 128, 128, 128, 128, 256, 256, 256, 512, 1024 };
+//static int backToDown[16] = { 0, 0, 0, -1, -1, -1, -2, -3, -1, -2, -1, -2, -1, -1, -1, -1 };
+
 // This constant buffer gets the information of the face
 cbuffer EBufferInfo : register(b0)
 {
@@ -146,55 +154,25 @@ float2 Project(float3 P)
 	return P.xy / P.z;
 }
 
-uint2 ToScreenPixel(float2 P, int faceIndex)
+float2 ToScreenPixel(float2 P, int faceIndex)
 {
-	uint px = uint(min(max(0, (P.x + 1)) * 0.5 * CubeLength, CubeLength - 1) + faceIndex * CubeLength);
-	uint py = uint(min(max(0, (1 - P.y)) * 0.5 * CubeLength, CubeLength - 1));
-	return uint2(px, py);
+	P = clamp(P, -0.999, 0.999);
+	return (P*float2(0.5, -0.5) + float2(0.5 + faceIndex, 0.5))*CubeLength;
 }
 
-float2 ToPixelF(float2 P)
-{
-	return float2((P.x + 1) * 0.5 * CubeLength, (1 - P.y) * 0.5 * CubeLength);
-}
-
-void GetPixelFromView(float3 P, int faceIndex, float2 Ds, out uint2 px, out float2 Ps, out float2 PsN) {
-	Ps = Project(P);
-	PsN = float2 ((Ps.x + 1)*0.5 + faceIndex, (1 - Ps.y)*0.5) * CubeLength;
-	px = ToScreenPixel(Ps, faceIndex);
-}
-
-bool IsInsideFrustum(float2 Ps, uint2 px)
-{
-	float2 screenPixelCenter = float2(px.x % CubeLength + 0.5, px.y + 0.5);
-	float2 projectedSPC = float2((screenPixelCenter.x / CubeLength) * 2 - 1, 1 - (screenPixelCenter.y / CubeLength) * 2);
-	float halfPixel = (1.0 + 0.1) / (CubeLength);
-
-	return (Ps.x >= projectedSPC.x - halfPixel && Ps.x <= projectedSPC.x + halfPixel &&
-		Ps.y >= projectedSPC.y - halfPixel && Ps.y <= projectedSPC.y + halfPixel);
+uint2 GetPixelFromView(float3 P, int faceIndex) {
+	return ToScreenPixel(Project(P), faceIndex);
 }
 
 bool HFS(float3 pos, float3 dir, float3 B, float3 C, inout float t, inout float3 P)
 {
-	float3 BA = B;
-	float3 CA = C;
-	float3 BAxCA = cross(BA, CA);
-
-	float3 n = (BAxCA);
-
+	float3 n = cross(B, C);
 	float nDOTdir = dot(n, dir);
-
 	float newt = (-dot(n, pos)) / nDOTdir;
-
-	if (newt <= 0 || newt > t)
-		return false;
-
-	//newt = min (newt, t);
-
-	P = pos + dir * newt;
-	t = newt;
-
-	return true;
+	bool update = newt > 0 && newt < t;
+	P = update ? pos + dir * newt : P;
+	t = update ? newt : t;
+	return update;
 }
 
 bool Intersect(float3 O, float3 D, float3 V1, float3 V2, float3 V3, float minT,
@@ -228,32 +206,34 @@ bool Intersect(float3 O, float3 D, float3 V1, float3 V2, float3 V3, float minT,
 	return true;
 }
 
-void UpLOD(inout float2 PsN, inout int rangeIndex, inout uint frustumSize, inout uint2 px)
+void DownLOD(inout uint2 px, inout int lod, float2 npx)
 {
-	rangeIndex--;
-	frustumSize >>= 1;
-	PsN *= 2;
+	uint2 newPxInLvl0 = uint2(npx) >> (rangeIndices[lod] - 1);
 	px <<= 1;
-	px |= uint2 (PsN.x >= px.x + 1 ? 1 : 0, PsN.y >= px.y + 1 ? 1 : 0);
+	px |= px < newPxInLvl0;
+	lod += backToDown[lod];
 }
 
-void DownLOD(inout float2 PsN, inout int rangeIndex, inout uint frustumSize, inout uint2 px)
+void UpLOD(inout uint2 px, inout int lod)
 {
-	rangeIndex++;
-	frustumSize <<= 1;
-	PsN /= 2;
-	px >>= 1;
+	px = lod < 15 ? px >> (rangeIndices[lod + 1] - rangeIndices[lod]) : px;
+	lod = lod < 15 ? lod + 1 : lod;
 }
 
-bool InsideFrustumView(uint2 px, int frustumSize, int faceIndex)
+void DownLODTo0(inout uint2 px, int lod, float2 npx)
 {
-	return px.x * frustumSize >= faceIndex * CubeLength && px.x  * frustumSize< (faceIndex + 1)*CubeLength && px.y *
-		frustumSize >= 0 && px.y  * frustumSize< CubeLength;
+	uint2 newPxInLvl0 = uint2(npx);
+	uint2 prefix = newPxInLvl0 >> rangeIndices[lod];
+	uint mask = (1 << (rangeIndices[lod] + 1)) - 1;
+	uint posfixx = px.x < prefix.x ? mask : px.x > prefix.x ? 0 : newPxInLvl0.x & mask;
+	uint posfixy = px.y < prefix.y ? mask : px.y > prefix.y ? 0 : newPxInLvl0.y & mask;
+	px = prefix << rangeIndices[lod] | uint2(posfixx, posfixy);
 }
 
-void AdvanceRayMarching(inout int counter, float3 P, float3 H, int faceIndex, float3 D, inout int rangeIndex, inout uint
-
-	frustumSize, out bool hit, out int index, out float3 rayHitCoords)
+void AdaptiveAdvanceRayMarching(inout int counter, float3 P, float3 H, int faceIndex, float3 D,
+	inout int lod,
+	//inout int rangeIndex, inout int frustumSize,
+	out bool hit, out int index, out float3 rayHitCoords)
 {
 	float znear = 0.0015;
 
@@ -306,21 +286,13 @@ void AdvanceRayMarching(inout int counter, float3 P, float3 H, int faceIndex, fl
 	float pixelSize = 2.0 / CubeLength;
 
 	float2 Ds = Project(H) - Project(P);
-	float lengthDs = length(Ds);
 
-	if (lengthDs == 0)
-		lengthDs = 1;
-
-	Ds /= lengthDs;
-
-	uint2 px;
-	float2 Ps;
-	float2 PsN;
-	GetPixelFromView(P, faceIndex, Ds, px, Ps, PsN);
-	px /= frustumSize;
-	PsN /= frustumSize;
+	float2 npx = ToScreenPixel(Project(P), faceIndex);
+	uint2 px = uint2(npx) / frustumSizes[lod];
 
 	float2 fact = float2(Ds.x < 0 ? -0.5 : 0.5, Ds.y < 0 ? -0.5 : 0.5);
+
+	int2 incToNext = int2(fact.x < 0 ? -1 : 1, fact.y < 0 ? 1 : -1);
 
 	float2 XCorner1 = fact.x * float2(1, -1) * pixelSize;
 	float2 XCorner2 = fact.x * float2(1, 1) * pixelSize;
@@ -329,24 +301,20 @@ void AdvanceRayMarching(inout int counter, float3 P, float3 H, int faceIndex, fl
 
 	float globalStep = length(H - P) * sign(dot(D, H - P)); // start step with all length to screen side
 
-	for (int k = 0; k<1024; k++)
+	for (int k = 0; k < 512; k++)
 	{
 		Range range = (Range)0;
 
-		if (rangeIndex > 0 && !GetEmptySpaceBlock(rangeIndex, px, P.z, range))
-		{
-			//UpTo0LOD (PsN, rangeIndex, frustumSize, px);
-			while (rangeIndex > 0)
-				UpLOD(PsN, rangeIndex, frustumSize, px);
-		}
+		while (rangeIndices[lod] > 0 && !GetEmptySpaceBlock(rangeIndices[lod], px, P.z, range))
+			DownLOD(px, lod, npx);
 
-		float2 pc = (px + float2(0.5, 0.5)) * frustumSize / CubeLength;
+		float2 pc = (px + float2(0.5, 0.5)) * frustumSizes[lod] / CubeLength;
 		float2 currentPixelCenter = float2((pc.x % 1) * 2 - 1, 1 - 2 * pc.y);
 		float3 newP = H;
 		float step = globalStep;
 
-		bool hsideX = HFS(firstP, D, float3(currentPixelCenter + XCorner1 * frustumSize, 1), float3(currentPixelCenter + XCorner2 * frustumSize, 1), step, newP);
-		bool hsideY = HFS(firstP, D, float3(currentPixelCenter + YCorner1 * frustumSize, 1), float3(currentPixelCenter + YCorner2 * frustumSize, 1), step, newP);
+		bool hsideX = HFS(firstP, D, float3(currentPixelCenter + XCorner1 * frustumSizes[lod], 1), float3(currentPixelCenter + XCorner2 * frustumSizes[lod], 1), step, newP);
+		bool hsideY = HFS(firstP, D, float3(currentPixelCenter + YCorner1 * frustumSizes[lod], 1), float3(currentPixelCenter + YCorner2 * frustumSizes[lod], 1), step, newP);
 
 		bool hside = hsideX || hsideY;
 
@@ -356,87 +324,80 @@ void AdvanceRayMarching(inout int counter, float3 P, float3 H, int faceIndex, fl
 		bool clipped = false;
 		bool occupied = false;
 
-		if (rangeIndex == 0)
+		if (rangeIndices[lod] == 0)
 		{
 			occupied = DetectBlocks(px, depth1, depth2, index1, index2);
 			range.Minim = 0;
 			range.Maxim = 1000;
-
-			if (occupied)
-			{
-				float t = 100000;
-				float3 hitP = rayOrigin + rayDirection * t;
-
-				int minIndex = min(index1, index2);
-				int maxIndex = max(index1, index2);
-				float minimDepth = depth1;
-				float maximDepth = depth2;
-
-				int startIndex = occupiedRanges[minIndex].Start;
-				int endIndex = occupiedRanges[maxIndex].Start + occupiedRanges[maxIndex].Count - 1;
-
-				for (int j = startIndex; j <= endIndex; j++)
-				{
-					counter += CountHits;
-
-					Fragment frag = fragments[indices[j]];
-					int hI = frag.Index;
-					float minDepth = frag.MinDepth;
-					float maxDepth = frag.MaxDepth;
-
-					float tt;
-					float3 PP;
-					float3 coords;
-
-					if (minDepth > maximDepth)
-						break;
-
-					if (
-						minimDepth <= maxDepth && minDepth <= maximDepth &&
-						Intersect(rayOrigin, rayDirection,
-							triangles[3 * hI].Position,
-							triangles[3 * hI + 1].Position,
-							triangles[3 * hI + 2].Position,
-							t,
-							tt, PP, coords))
-					{
-						index = hI;
-						t = tt;
-						hitP = PP;
-						rayHitCoords = coords;
-					}
-				}
-			}
 		}
 
-		clipped = newP.z < range.Minim | newP.z > range.Maxim;
+		clipped = newP.z < range.Minim || newP.z > range.Maxim;
 
 		float alpha = ((newP.z > P.z ? range.Maxim : range.Minim) - P.z) / (newP.z - P.z);
 
-		newP = clipped ? lerp(P, newP, min(1, alpha)) : newP;
+		P = clipped ? lerp(P, newP, alpha) : newP;
+		npx = ToScreenPixel(Project(P + D*0.01), faceIndex);
 
+
+		int pxYInc = hsideY * incToNext.y;// !hsideY ? 0 : incToNext.y;
+		int pxXInc = (!hsideY)*incToNext.x;// hsideY ? 0 : incToNext.x;
+		px += clipped ? 0 : int2(pxXInc, pxYInc);
+
+		if (clipped)
+			DownLOD(px, lod, npx);
+		else
+			UpLOD(px, lod);
+
+		if (occupied)
+		{
+			float t = 100000;
+			float3 hitP = rayOrigin + rayDirection * t;
+
+			int minIndex = min(index1, index2);
+			int maxIndex = max(index1, index2);
+			float minimDepth = depth1;
+			float maximDepth = depth2;
+
+			int startIndex = occupiedRanges[minIndex].Start;
+			int endIndex = occupiedRanges[maxIndex].Start + occupiedRanges[maxIndex].Count - 1;
+
+			for (int j = startIndex; j <= endIndex; j++)
+			{
+				counter += CountHits;
+
+				Fragment frag = fragments[indices[j]];
+				int hI = frag.Index;
+				float minDepth = frag.MinDepth;
+				float maxDepth = frag.MaxDepth;
+
+				float tt;
+				float3 PP;
+				float3 coords;
+
+				if (minDepth > maximDepth)
+					break;
+
+				if (minimDepth <= maxDepth && minDepth <= maximDepth &&
+					Intersect(rayOrigin, rayDirection,
+						triangles[3 * hI].Position,
+						triangles[3 * hI + 1].Position,
+						triangles[3 * hI + 2].Position,
+						t,
+						tt, PP, coords))
+				{
+					index = hI;
+					t = tt;
+					hitP = PP;
+					rayHitCoords = coords;
+				}
+			}
+		}
+		
 		hit = index != -1;
 
-		int pxYInc = clipped ? 0 : !hsideY ? 0 : fact.y < 0 ? 1 : -1;
-		int pxXInc = clipped ? 0 : hsideY ? 0 : fact.x > 0 ? 1 : -1;
-		px += int2(pxXInc, pxYInc);
-
-		P = newP;
-		Ps = Project(P) + Ds*0.001;// Project(P+ D * 0.001f);
-		PsN = uint2(float2((Ps.x + 1) * 0.5f + faceIndex, (1 - Ps.y) * 0.5f) * CubeLength) / (float)(frustumSize);
-
-		int increment = clipped ? -1 : (UseAdaptiveSteps == 0 ? 0 : frustumSize < CubeLength / 2 ? 2 : 0);
-		float frustumFactor = clipped ? 0.5 : UseAdaptiveSteps == 0 ? 1 : frustumSize < CubeLength / 2 ? 4 : 1;
-
-		rangeIndex += increment;
-		frustumSize *= frustumFactor;
-		PsN /= frustumFactor;
-		px /= frustumFactor;
-		px += (clipped) ? uint2 (PsN.x >= px.x + 1 ? 1 : 0, PsN.y >= px.y + 1 ? 1 : 0) : uint2(0, 0);
 		counter += CountSteps;
 
-		[branch]
-		if (hit || (globalStep - distance(firstP, newP)) <= 0.001 || P.z > 100 || P.z <= znear)
+		if (hit || (globalStep - distance(firstP, P)) <= 0.001 || P.z > 100 || P.z <= znear)
 			return;
 	}
 }
@@ -504,15 +465,15 @@ void main(float4 proj : SV_POSITION, out int rayHit : SV_TARGET0, out float3 ray
 
 	fHits[fHitsCount++] = pos;
 
-	for (int i = 0; i<12; i++)
+	for (int i = 0; i < 12; i++)
 		if (Intersect(origin, dir, float3(0, 0, 0), fCorners[i * 2 + 0] * 100, fCorners[i * 2 + 1] * 100, 1000, t, fHit,
 			coords))
 			fHits[fHitsCount++] = fHit;
 
 	fHits[fHitsCount++] = origin + dir * 100; // final position at infinity
 
-	for (int i = 0; i<fHitsCount - 1; i++)
-		for (int j = i + 1; j<fHitsCount; j++)
+	for (int i = 0; i < fHitsCount - 1; i++)
+		for (int j = i + 1; j < fHitsCount; j++)
 			if (length(fHits[j] - origin) < length(fHits[i] - origin))
 			{
 				float3 temp = fHits[j];
@@ -527,13 +488,11 @@ void main(float4 proj : SV_POSITION, out int rayHit : SV_TARGET0, out float3 ray
 
 	int counter = 0;
 
-	int rangeIndex = 0;
-	uint frustumSize = 1;
+	int lod = 0;
 
-	for (int i = 0; i<fHitsCount - 1; i++)
+	for (int i = 0; i < fHitsCount - 1; i++)
 	{
-		AdvanceRayMarching(counter, fHits[i], fHits[i + 1], faceIndices[i], dir, rangeIndex, frustumSize, hit,
-
+		AdaptiveAdvanceRayMarching(counter, fHits[i], fHits[i + 1], faceIndices[i], dir, lod, hit,
 			rayHit, rayHitCoords);
 
 		if (CountSteps)

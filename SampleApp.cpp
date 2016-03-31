@@ -58,8 +58,8 @@ void InitializeScene(DeviceManager* manager)
 {
 	scene = new Scene<VERTEX, MATERIAL>(manager);
 	// Camera setup
-	scene->getCamera()->Position = float3(1, 2, -6);
-	scene->getCamera()->Target = float3(0, 2, 0);
+	scene->getCamera()->Position = float3(6, 3, 0);
+	scene->getCamera()->Target = float3(0, 1, 0);
 	scene->getCamera()->Up = float3(0, 1, 0);
 	scene->getCamera()->FoV = PI / 2;
 	scene->getCamera()->NearPlane = 0.1;
@@ -313,8 +313,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case 0x53: // S
 			scene->getCamera()->MoveBackward();
 			break;
-		default:
-			break;
 		case 0x49: // I
 			ShowInfo = !ShowInfo;
 			break;
@@ -333,6 +331,24 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			nextShow = GetTimming();
 			StartTimming();
 			break;
+		case 0x43: // C
+		{
+			RTProcess *rtP = dynamic_cast<RTProcess*>(process);
+			if (rtP != nullptr)
+			{
+				rtP->ShowComplexity = !rtP->ShowComplexity;
+			}
+			break;
+		}
+		case 0x55: // U
+		{
+			RTProcess *rtP = dynamic_cast<RTProcess*>(process);
+			if (rtP != nullptr)
+			{
+				rtP->UseAdaptiveSteps = !rtP->UseAdaptiveSteps;
+			}
+			break;
+		}
 		case VK_ADD: // +
 		{
 			auto dp = dynamic_cast<DebugableProcess*>(process);

@@ -176,7 +176,7 @@ private:
 	DebugTexture* debugingTexture;
 	DebugComplexity* debugingComplexity;
 protected:
-	void DebugTexture(Texture2D* texture, float4x4 transform = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}) {
+	void DebugTexture(Texture2D* texture, float4x4 transform = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 }) {
 		debugingTexture->RenderTarget = RenderTarget;
 		debugingTexture->Texture = texture;
 		debugingTexture->Transforms->Update(transform);
@@ -287,6 +287,13 @@ protected:
 		clear RTV(RenderTarget); // Ray tracing accumulations
 		clear UAV(traversing->Complexity);
 
+		RaytraversalDebug debug;
+		debug.CountHits = 0;
+		debug.CountSteps = 1;
+		debug.LODVariations = 1;
+		debug.UseAdaptiveSteps = UseAdaptiveSteps ? 1 : 0;
+		traversing->RaytraversalDebugCB->Update(debug);
+
 		int N = 2;
 
 		for (int b = 0; b < N; b++)
@@ -308,7 +315,7 @@ protected:
 				with NoDepthTest()
 				with Viewport(RenderTarget->getWidth(), RenderTarget->getHeight())
 				with Blending(one, one);
-			
+
 			draw Screen();
 
 			/// --- SWAP RAY BUFFERS ---
@@ -323,13 +330,6 @@ protected:
 			{
 				traversing->RayOrigins = rayOrigins;
 				traversing->RayDirections = rayDirections;
-				
-				RaytraversalDebug debug;
-				debug.CountHits = 0;
-				debug.CountSteps = 1;
-				debug.LODVariations = 1;
-				debug.UseAdaptiveSteps = 0;
-				traversing->RaytraversalDebugCB->Update(debug);
 
 				perform(traversing, RenderTarget->getWidth(), RenderTarget->getHeight());
 
@@ -337,13 +337,19 @@ protected:
 				//DebugComplexity(traversing->Hits, 0.001);
 				//return;
 			}
-
-			//DebugTexture(traversing->HitCoords);
+		}
+		if (ShowComplexity)
+		{
+			DebugTexture(traversing->HitCoords);
 			DebugComplexity(traversing->Complexity);
 			return;
 		}
 	}
 public:
+
+	bool ShowComplexity;
+	bool UseAdaptiveSteps;
+
 	RTProcess(DeviceManager* manager, ScreenDescription description) :DrawSceneProcess(manager, description) {
 	}
 	void SetScene(SScene* scene)
