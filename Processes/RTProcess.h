@@ -6,7 +6,7 @@
 #include "EBufferConstructionProcess.h"
 #include "GDebug.h"
 
-#define RT_EBUFFER_POWER 6
+#define RT_EBUFFER_POWER 7
 
 class RT_InitialRays_PS : public PixelShaderBinding {
 public:

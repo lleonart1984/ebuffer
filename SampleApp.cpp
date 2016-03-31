@@ -327,8 +327,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			break;
 		case 0x52: // R
 			CurrentTime = GetTickCount64();
-			frameCount = 1;
-			nextShow = GetTimming();
+			frameCount = 0;
+			nextShow = GetTimming()+1;
 			StartTimming();
 			break;
 		case 0x43: // C
@@ -465,7 +465,10 @@ void ComputeFPS() {
 	{
 		FPS = 1000 * t / frameCount;// t > 0 ? frameCount / t : 0;
 
-		nextShow += 1;
+		CurrentTime = GetTickCount64();
+		frameCount = 0;
+		nextShow = GetTimming() + 5;
+		StartTimming();
 	}
 }
 
