@@ -135,8 +135,8 @@ bool DownLODUntilEmptyBlock(inout int rangeIndex, inout uint2 coord, float2 npx,
 	range = (Range)0;
 	int count = eLengthBuffer[coord << rangeIndex];
 
-	[unroll(5)]
-	for (int i = 5; i > 0; i--)
+	[unroll(6)]
+	for (int i = 6; i > 0; i--)
 		if (rangeIndex == i)
 		{
 			int start = startEB[i][coord];
@@ -323,10 +323,17 @@ void AdaptiveAdvanceRayMarching(inout int counter, float3 P, float3 H, int faceI
 
 	int2 incToNext = int2(fact.x < 0 ? -1 : 1, fact.y < 0 ? 1 : -1);
 
-	float2 XCorner1 = fact.x * float2(1, -1) * pixelSize;
 	float2 XCorner2 = fact.x * float2(1, 1) * pixelSize;
 	float2 YCorner1 = fact.y * float2(-1, 1) * pixelSize;
+	float2 XCorner1 = fact.x * float2(1, -1) * pixelSize;
 	float2 YCorner2 = fact.y * float2(1, 1) * pixelSize;
+
+	float4x2 corners = {
+		float2(fact.x + 0.5, 0) * pixelSize ,
+		float2(0, 0.5-fact.y) * pixelSize ,
+		float2(fact.x + 0.5, -1) * pixelSize ,
+		float2(1, 0.5-fact.y) * pixelSize 
+	};
 
 	float globalStep = length(H - P) * sign(dot(D, H - P)); // start step with all length to screen side
 
@@ -345,13 +352,15 @@ void AdaptiveAdvanceRayMarching(inout int counter, float3 P, float3 H, int faceI
 
 		frustumSize = 1 << lod;
 
-		float2 pc = (px + float2(0.5, 0.5)) / (CubeLength >> lod);
-		float2 currentPixelCenter = float2((pc.x % 1) * 2 - 1, 1 - 2 * pc.y);
+		float2 pc = (px << lod) / (float)CubeLength;
+		float2 currentPixelLUCorner = float2((pc.x % 1) * 2 - 1, 1 - 2 * pc.y);
 		float3 newP = H;
 		float step = globalStep;
 
-		bool hsideX = HFS(firstP, D, float3(currentPixelCenter + XCorner1 * frustumSize, 1), float3(currentPixelCenter + XCorner2 * frustumSize, 1), step, newP);
-		bool hsideY = HFS(firstP, D, float3(currentPixelCenter + YCorner1 * frustumSize, 1), float3(currentPixelCenter + YCorner2 * frustumSize, 1), step, newP);
+		float4x2 scaledCorners = corners * frustumSize;
+
+		bool hsideX = HFS(firstP, D, float3(currentPixelLUCorner + scaledCorners._m00_m01, 1), float3(currentPixelLUCorner + scaledCorners._m20_m21, 1), step, newP);
+		bool hsideY = HFS(firstP, D, float3(currentPixelLUCorner + scaledCorners._m10_m11, 1), float3(currentPixelLUCorner + scaledCorners._m30_m31, 1), step, newP);
 
 		bool hside = hsideX || hsideY;
 
@@ -433,7 +442,7 @@ void AdaptiveAdvanceRayMarching(inout int counter, float3 P, float3 H, int faceI
 			int pxXInc = (!hsideY)*incToNext.x;// hsideY ? 0 : incToNext.x;
 			px += int2(pxXInc, pxYInc);
 
-			int toUp = upCounter > 0 ? 0 : 5 - lod;
+			int toUp = upCounter > 0 ? 0 : min (6 - lod, 1);
 
 			px >>= toUp;
 			lod += toUp;
