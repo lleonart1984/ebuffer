@@ -125,6 +125,10 @@ public:
 	{
 		Release();
 	}
+
+	void UpdateSubresource(int subresourceIndex, Resource* resource) {
+		manager->getContext()->CopySubresourceRegion(__internalResource, subresourceIndex, 0, 0, 0, resource->__internalResource, 0, NULL);
+	}
 };
 
 class Buffer : public Resource
@@ -1062,7 +1066,7 @@ public:
 		td.Height = height;
 		td.BindFlags = flags;
 		td.CPUAccessFlags = usage == D3D11_USAGE_DEFAULT ? 0 : usage == D3D11_USAGE_DYNAMIC ? D3D11_CPU_ACCESS_WRITE : usage == D3D11_USAGE_STAGING ? D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_WRITE : 0;
-		td.MipLevels = 1;
+		td.MipLevels = 0;
 		td.ArraySize = 1;
 		td.SampleDesc.Count = 1;
 		td.SampleDesc.Quality = 0;

@@ -63,7 +63,7 @@ cbuffer RaymarchingInfo : register (b1) {
 	int LODVariations;
 }
 
-bool GetEmptySpaceBlock(int rangeIndex, uint2 coord, float currentDepth, out Range range)
+bool GetEmptySpaceBlock(int rangeIndex, uint2 coord, float d, out Range range)
 {
 	uint2 mipCoord = coord;
 
@@ -76,8 +76,8 @@ bool GetEmptySpaceBlock(int rangeIndex, uint2 coord, float currentDepth, out Ran
 	for (int i = start; i <= endIndex; i++)
 	{
 		range = ranges[i];
-		if (range.Maxim > currentDepth)
-			return range.Minim < currentDepth;
+		if (range.Maxim > d)
+			return range.Minim < d;
 	}
 	return false;
 }
@@ -85,17 +85,32 @@ bool GetEmptySpaceBlock(int rangeIndex, uint2 coord, float currentDepth, out Ran
 // Determines blocks in a frustum given screen coordinates and minimum and maximum depths.
 // Return true if an occupied block is found, in that case, index1 and index2 are the interval of blocks involved.
 // Return false if no occupied blocks are found
+//bool DetectBlocks(uint2 coord, float minDepth, float maxDepth, out uint index1, out uint index2)
+//{
+//	uint startIndex = startEB.mips[0][coord];
+//	uint endIndex = startIndex + eLengthBuffer[coord] - 2;
+//	index1 = startIndex;
+//	index2 = endIndex;
+//	if (eLengthBuffer[coord] <= 1 || maxDepth < ranges[startIndex].Maxim || minDepth > ranges[endIndex + 1].Minim)
+//		return false;
+//	while (ranges[index1 + 1].Minim < minDepth)
+//		index1++;
+//	while (ranges[index2].Maxim > maxDepth)
+//		index2--;
+//	return index1 <= index2;
+//}
+
 bool DetectBlocks(uint2 coord, float minDepth, float maxDepth, out uint index1, out uint index2)
 {
 	uint startIndex = startEB.mips[0][coord];
 	uint endIndex = startIndex + eLengthBuffer[coord] - 2;
 	index1 = startIndex;
 	index2 = endIndex;
-	if (eLengthBuffer[coord] <= 1 || maxDepth < ranges[startIndex].Maxim || minDepth > ranges[endIndex + 1].Minim)
+	if (eLengthBuffer[coord] <= 1)
 		return false;
-	while (ranges[index1 + 1].Minim < minDepth)
+	while (ranges[index1+1].Maxim < minDepth)
 		index1++;
-	while (ranges[index2].Maxim > maxDepth)
+	while (ranges[index2].Minim > maxDepth)
 		index2--;
 	return index1 <= index2;
 }
@@ -133,8 +148,8 @@ bool HFS(float3 pos, float3 dir, float3 B, float3 C, inout float t, inout float3
 	float nDOTdir = dot(n, dir);
 	float newt = (-dot(n, pos)) / nDOTdir;
 	bool update = newt > 0 && newt < t;
-	P = update ? pos + dir * newt : P;
 	t = update ? newt : t;
+	P = pos + dir * t;
 	return update;
 }
 
@@ -167,34 +182,6 @@ bool Intersect(float3 O, float3 D, float3 V1, float3 V2, float3 V3, float minT,
 	coords = float3 (1 - uvt.x - uvt.y, uvt.x, uvt.y);
 	t = uvt.z;
 	return true;
-}
-
-uint2 GetLOD0Version(uint2 px, int lod, float2 npx)
-{
-	uint2 newPxInLvl0 = uint2(npx);
-	uint2 prefix = newPxInLvl0 >> lod;
-	uint mask = (1 << (lod + 1)) - 1;
-	uint posfixx = px.x < prefix.x ? mask : px.x > prefix.x ? 0 : newPxInLvl0.x & mask;
-	uint posfixy = px.y < prefix.y ? mask : px.y > prefix.y ? 0 : newPxInLvl0.y & mask;
-	return prefix << lod | uint2(posfixx, posfixy);
-}
-
-void DownLOD(inout uint2 coord, inout int lod, float2 npx)
-{
-	uint2 newPxInLvl0 = uint2(npx) >> (lod - 1);
-	coord <<= 1;
-	coord |= coord < newPxInLvl0;
-	lod--;
-}
-
-void DownLODTo0(inout uint2 px, int lod, float2 npx)
-{
-	uint2 newPxInLvl0 = uint2(npx);
-	uint2 prefix = newPxInLvl0 >> lod;
-	uint mask = (1 << (lod + 1)) - 1;
-	uint posfixx = px.x < prefix.x ? mask : px.x > prefix.x ? 0 : newPxInLvl0.x & mask;
-	uint posfixy = px.y < prefix.y ? mask : px.y > prefix.y ? 0 : newPxInLvl0.y & mask;
-	px = prefix << lod | uint2(posfixx, posfixy);
 }
 
 void AdaptiveAdvanceRayMarching(inout int counter, float3 P, float3 H, int faceIndex, float3 D,
@@ -271,22 +258,21 @@ void AdaptiveAdvanceRayMarching(inout int counter, float3 P, float3 H, int faceI
 
 	float globalStep = length(H - P) * sign(dot(D, H - P)); // start step with all length to screen side
 
-	int upCounter = 1;
-
 	for (int k = 0; k < 512; k++)
 	{
 		Range range = (Range)0;
+		
+		while (lod > 0 && !GetEmptySpaceBlock(lod, px >> lod, P.z, range))
+			lod--;
+		if (lod == 0)
+		{
+			range.Minim = 0;
+			range.Maxim = 1000;
+		}
 
-		bool empty = lod > 0 && GetEmptySpaceBlock(lod, px >> lod, P.z, range);
+		int frustumSize = (1 << lod);
 
-		bool needToReduce = lod > 0 && !empty;
-		int fLOD = needToReduce ? 0 : lod;
-		lod -= needToReduce;
-		upCounter = needToReduce ? 3 : upCounter;
-
-		int frustumSize = (1 << fLOD);
-
-		float2 pc = (px >> fLOD) * frustumSize / (float)CubeLength;
+		float2 pc = (px >> lod) * frustumSize / (float)CubeLength;
 
 		float2 currentPixelLUCorner = float2((pc.x % 1) * 2 - 1, 1 - 2 * pc.y);
 		float3 newP = H;
@@ -296,21 +282,16 @@ void AdaptiveAdvanceRayMarching(inout int counter, float3 P, float3 H, int faceI
 
 		bool hsideX = HFS(firstP, D, float3(currentPixelLUCorner + scaledCorners._m00_m01, 1), float3(currentPixelLUCorner + scaledCorners._m20_m21, 1), step, newP);
 		bool hsideY = HFS(firstP, D, float3(currentPixelLUCorner + scaledCorners._m10_m11, 1), float3(currentPixelLUCorner + scaledCorners._m30_m31, 1), step, newP);
-
-		bool hside = hsideX || hsideY;
-
-		bool clipped = false;
+		
 		bool occupied = false;
 
-		if (fLOD == 0)
+		if (lod == 0)
 		{
 			depth1 = min(P.z, newP.z);
 			depth2 = max(P.z, newP.z);
 
 			occupied = DetectBlocks(px, depth1, depth2, index1, index2);
-			range.Minim = 0;
-			range.Maxim = 1000;
-
+			[branch]
 			if (occupied)
 			{
 				float t = 100000;
@@ -358,34 +339,22 @@ void AdaptiveAdvanceRayMarching(inout int counter, float3 P, float3 H, int faceI
 				hit = index != -1;
 			}
 		}
-		
+	
 		float zToTest = D.z > 0 ? range.Maxim : range.Minim;
 
-		float alpha = (zToTest - P.z) / (newP.z - P.z);
+		float alpha = min(1, (zToTest - P.z) / (newP.z - P.z));
 
-		P = alpha > 1 ? newP : lerp(P, newP, alpha);
+		P = lerp(P, newP, alpha);
 
 		npx = ToScreenPixel(Project(P) + Ds*0.001, faceIndex);
 		
-		//int pxYInc = hsideY * incToNext.y;// !hsideY ? 0 : incToNext.y;
-		//int pxXInc = (!hsideY)*incToNext.x;// hsideY ? 0 : incToNext.x;
-
-		//px = (fLOD == 0)? px + int2(pxXInc, pxYInc) : uint2(npx);
-
 		px = npx;
 
-		//lod = min(6, lod + (upCounter-- <= 0));
-		/*if (inside)
-		{
-			int toUp = upCounter > 0 ? 0 : min(8 - lod, 2);
-			lod += toUp;
-		}
-
-		upCounter = max(0, upCounter - inside);*/
+		lod = min(7, lod + (alpha == 1)*3);
 
 		counter += CountSteps;
 
-		if (hit || (globalStep - distance(firstP, P)) <= 0.01 || P.z > 100 || P.z <= znear)
+		if (hit || (globalStep - distance(firstP, P)) <= 0.001 || P.z > 100 || P.z <= znear)
 			return;
 	}
 }

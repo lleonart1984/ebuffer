@@ -121,8 +121,7 @@ public:
 	Texture2D *EBufferLengths;
 	Buffer *OccupiedBlocks;
 	Buffer *EmptyBlocks;
-	Texture2D** StartBuffers;
-	int StartBuffersLength;
+	Texture2D* StartBuffers;
 
 	// CBs
 	Buffer* EBufferInfoCB;
@@ -145,7 +144,7 @@ protected:
 		SRV(5, EBufferLengths);
 		SRV(6, OccupiedBlocks);
 		SRV(7, EmptyBlocks);
-		SRV(8, (Resource**)StartBuffers, StartBuffersLength);
+		SRV(8, StartBuffers);
 
 		CB(0, EBufferInfoCB);
 		CB(1, RaytraversalDebugCB);
@@ -234,8 +233,7 @@ protected:
 		traversing->EBufferLengths = constructingEBuffer->EBufferLengths;
 		traversing->EmptyBlocks = constructingEBuffer->EmptyBlocks;
 		traversing->OccupiedBlocks = constructingEBuffer->OccupiedBlocks;
-		traversing->StartBuffers = constructingEBuffer->StartBuffer;
-		traversing->StartBuffersLength = constructingEBuffer->NumberOfLevels;
+		traversing->StartBuffers = constructingEBuffer->OutputStartBuffer;
 		// ABuffer data binding
 		traversing->Fragments = constructingEBuffer->ABuffer()->Fragments;
 		traversing->Indices = constructingEBuffer->ABuffer()->Indices;

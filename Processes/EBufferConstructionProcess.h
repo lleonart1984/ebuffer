@@ -90,6 +90,7 @@ public:
 	Buffer* EmptyBlocks;
 	Buffer* OccupiedBlocks;
 	float4x4 ViewMatrix;
+	Texture2D* OutputStartBuffer;
 
 	void SetScene(SScene *scene) {
 		SceneProcess<EBufferDescription>::SetScene(scene);
@@ -119,6 +120,9 @@ protected:
 		
 		NumberOfLevels = Description.Power + 1;
 		StartBuffer = new Texture2D*[NumberOfLevels];
+
+		OutputStartBuffer = create Texture<int>(Description.getResolution() * 6, Description.getResolution());
+
 		StartBuffer[0] = constructingABuffer->StartBuffer;
 		int Size = Description.getResolution() / 2;
 		for (int i = 1; i <= Description.Power; i++)
@@ -140,6 +144,8 @@ protected:
 		int width = Description.getResolution() * 6;
 		int height = Description.getResolution();
 
+		OutputStartBuffer->UpdateSubresource(0, StartBuffer[0]);
+
 		CombiningProcessCB Combining;
 		// Create Level K From K-1
 		for (int K = 1; K <= Description.Power; K++)
@@ -154,6 +160,8 @@ protected:
 			height /= 2;
 
 			perform(buildingLevelK, width, height);
+
+			OutputStartBuffer->UpdateSubresource(K, StartBuffer[K]);
 		}
 	}
 private:

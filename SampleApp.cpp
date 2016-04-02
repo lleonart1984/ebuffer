@@ -72,23 +72,26 @@ void InitializeScene(DeviceManager* manager)
 	// Back color
 	scene->setBackColor(float4(0.2, 0.2, 0.4, 1));
 
+	int matToMod = 0;
+
 	switch (USED_SCENE)
 	{
 	case BUNNY:
 		scene->LoadObj(".\\Models\\bunny.obj", 10);
+		matToMod = 1;//bunny mat
 		break;
 	case DRAGON:
 		scene->LoadObj(".\\Models\\dragon.obj", 1);
+		matToMod = 0;//default mat
 		break;
 	case SPONZA:
 		scene->LoadObj(".\\Models\\sponza\\sponza.obj", 0.1f);
+		matToMod = 17;//sponza floor
 		break;
 	default:
 		break;
 	}
 
-	int matToMod = 17;//sponza floor
-	//int matToMod = 0;
 
 	if (scene->MaterialCount() > matToMod)
 	{
