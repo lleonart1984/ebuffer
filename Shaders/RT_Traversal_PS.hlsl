@@ -34,7 +34,8 @@ StructuredBuffer<int> indices					: register (t4);
 Texture2D<int> eLengthBuffer					: register (t5);
 StructuredBuffer<OccupiedRange> occupiedRanges	: register (t6);
 StructuredBuffer<Range> ranges					: register (t7);
-Texture2D<int> startEB[12]						: register (t8);
+Texture2D<int> startEB							: register (t8);
+//Texture2D<int> startEB[12]						: register (t8);
 
 static int rangeIndices[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 9, 9, 9, 10 };
 static int frustumSizes[16] = { 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 512, 512, 512, 512, 512, 1024 };
@@ -62,100 +63,22 @@ cbuffer RaymarchingInfo : register (b1) {
 	int LODVariations;
 }
 
-int GetEmptySpaceBlockPosition(uint2 coord, float currentDepth)
-{
-	int count = eLengthBuffer[coord];
-	int start = startEB[0][coord];
-
-	int startIndex = start;
-	int endIndex = start + count - 1;
-
-	/*if (ranges[startIndex].Maxim > currentDepth)
-	return 0;
-
-	if (ranges[endIndex].Minim < currentDepth)
-	return count - 1;
-	*/
-	for (int i = startIndex; i <= endIndex; i++)
-		if (ranges[i].Maxim > currentDepth)
-			return i - startIndex;
-
-	return 0;
-}
-
-int BinarySearchEmptySpaceBlockPosition(uint2 coord, float currentDepth)
-{
-	int count = eLengthBuffer[coord];
-	int start = startEB[0][coord];
-
-	int coords[2] = { start, start + count - 1 };
-
-	while (coords[0] < coords[1] - 1)
-	{
-		int medIndex = (coords[0] + coords[1]) >> 1;
-		coords[ranges[medIndex].Minim > currentDepth] = medIndex;
-	}
-
-	return coords[ranges[coords[0]].Maxim < currentDepth] - start;
-}
-
 bool GetEmptySpaceBlock(int rangeIndex, uint2 coord, float currentDepth, out Range range)
 {
 	uint2 mipCoord = coord;
 
-	int start = 0;
-
-	[forcecase]
-	switch (rangeIndex) {
-	case 0: start = startEB[0][mipCoord]; break;
-	case 1: start = startEB[1][mipCoord]; break;
-	case 2: start = startEB[2][mipCoord]; break;
-	case 3: start = startEB[3][mipCoord]; break;
-	case 4: start = startEB[4][mipCoord]; break;
-	case 5: start = startEB[5][mipCoord]; break;
-	case 6: start = startEB[6][mipCoord]; break;
-	case 7: start = startEB[7][mipCoord]; break;
-	case 8: start = startEB[8][mipCoord]; break;
-	case 9: start = startEB[9][mipCoord]; break;
-	case 10: start = startEB[10][mipCoord]; break;
-	case 11: start = startEB[11][mipCoord]; break;
-	}
-
+	int start = startEB.mips[rangeIndex][mipCoord];
 	uint2 refCoord = mipCoord << rangeIndex;
-
-	int position = GetEmptySpaceBlockPosition(refCoord, currentDepth);
-
-	range = ranges[start + position];
-
-	return range.Minim < currentDepth && range.Maxim > currentDepth;
-}
-
-bool DownLODUntilEmptyBlock(inout int rangeIndex, inout uint2 coord, float2 npx, float currentDepth, out Range range)
-{
+	int count = eLengthBuffer[refCoord];
+	int endIndex = start + count - 1;
 	range = (Range)0;
-	int count = eLengthBuffer[coord << rangeIndex];
 
-	[unroll(6)]
-	for (int i = 6; i > 0; i--)
-		if (rangeIndex == i)
-		{
-			int start = startEB[i][coord];
-			int end = start + count;
-			for (int j = start; j <= end; j++)
-			{
-				range = ranges[j];
-				if (range.Maxim > currentDepth)
-					if (range.Minim < currentDepth)
-						return true;
-					else
-						break;
-			}
-			uint2 newPxInLvl0 = uint2(npx) >> (rangeIndex - 1);
-			coord <<= 1;
-			coord |= coord < newPxInLvl0;
-			rangeIndex--;
-		}
-
+	for (int i = start; i <= endIndex; i++)
+	{
+		range = ranges[i];
+		if (range.Maxim > currentDepth)
+			return range.Minim < currentDepth;
+	}
 	return false;
 }
 
@@ -164,7 +87,7 @@ bool DownLODUntilEmptyBlock(inout int rangeIndex, inout uint2 coord, float2 npx,
 // Return false if no occupied blocks are found
 bool DetectBlocks(uint2 coord, float minDepth, float maxDepth, out uint index1, out uint index2)
 {
-	uint startIndex = startEB[0][coord];
+	uint startIndex = startEB.mips[0][coord];
 	uint endIndex = startIndex + eLengthBuffer[coord] - 2;
 	index1 = startIndex;
 	index2 = endIndex;
@@ -246,15 +169,32 @@ bool Intersect(float3 O, float3 D, float3 V1, float3 V2, float3 V3, float minT,
 	return true;
 }
 
-void DownLODTo0(inout uint2 px, inout int lod, float2 npx)
+uint2 GetLOD0Version(uint2 px, int lod, float2 npx)
 {
 	uint2 newPxInLvl0 = uint2(npx);
-	uint2 prefix = newPxInLvl0 >> rangeIndices[lod];
-	uint mask = (1 << (rangeIndices[lod] + 1)) - 1;
+	uint2 prefix = newPxInLvl0 >> lod;
+	uint mask = (1 << (lod + 1)) - 1;
 	uint posfixx = px.x < prefix.x ? mask : px.x > prefix.x ? 0 : newPxInLvl0.x & mask;
 	uint posfixy = px.y < prefix.y ? mask : px.y > prefix.y ? 0 : newPxInLvl0.y & mask;
-	px = prefix << rangeIndices[lod] | uint2(posfixx, posfixy);
-	lod = 0;
+	return prefix << lod | uint2(posfixx, posfixy);
+}
+
+void DownLOD(inout uint2 coord, inout int lod, float2 npx)
+{
+	uint2 newPxInLvl0 = uint2(npx) >> (lod - 1);
+	coord <<= 1;
+	coord |= coord < newPxInLvl0;
+	lod--;
+}
+
+void DownLODTo0(inout uint2 px, int lod, float2 npx)
+{
+	uint2 newPxInLvl0 = uint2(npx);
+	uint2 prefix = newPxInLvl0 >> lod;
+	uint mask = (1 << (lod + 1)) - 1;
+	uint posfixx = px.x < prefix.x ? mask : px.x > prefix.x ? 0 : newPxInLvl0.x & mask;
+	uint posfixy = px.y < prefix.y ? mask : px.y > prefix.y ? 0 : newPxInLvl0.y & mask;
+	px = prefix << lod | uint2(posfixx, posfixy);
 }
 
 void AdaptiveAdvanceRayMarching(inout int counter, float3 P, float3 H, int faceIndex, float3 D,
@@ -311,11 +251,10 @@ void AdaptiveAdvanceRayMarching(inout int counter, float3 P, float3 H, int faceI
 
 	float pixelSize = 2.0 / CubeLength;
 
-	float2 Ds = Project(H) - Project(P);
+	float2 Ds = normalize(Project(H) - Project(P));
 
-	int frustumSize = 1 << lod;
 	float2 npx = ToScreenPixel(Project(P), faceIndex);
-	uint2 px = uint2(npx) / frustumSize;
+	uint2 px = uint2(npx);
 
 	float2 faceSideToTest = float2 (D.z <= 0, D.z > 0); // x-front, y-back
 
@@ -323,36 +262,32 @@ void AdaptiveAdvanceRayMarching(inout int counter, float3 P, float3 H, int faceI
 
 	int2 incToNext = int2(fact.x < 0 ? -1 : 1, fact.y < 0 ? 1 : -1);
 
-	float2 XCorner2 = fact.x * float2(1, 1) * pixelSize;
-	float2 YCorner1 = fact.y * float2(-1, 1) * pixelSize;
-	float2 XCorner1 = fact.x * float2(1, -1) * pixelSize;
-	float2 YCorner2 = fact.y * float2(1, 1) * pixelSize;
-
 	float4x2 corners = {
 		float2(fact.x + 0.5, 0) * pixelSize ,
-		float2(0, 0.5-fact.y) * pixelSize ,
+		float2(0, -0.5 + fact.y) * pixelSize ,
 		float2(fact.x + 0.5, -1) * pixelSize ,
-		float2(1, 0.5-fact.y) * pixelSize 
+		float2(1, -0.5 + fact.y) * pixelSize
 	};
 
 	float globalStep = length(H - P) * sign(dot(D, H - P)); // start step with all length to screen side
 
-	int upCounter = 2;
+	int upCounter = 1;
 
 	for (int k = 0; k < 512; k++)
 	{
 		Range range = (Range)0;
 
-		if (lod > 0)
-		{
-			DownLODUntilEmptyBlock(lod, px, npx, P.z, range);
-			if (lod == 0)
-				upCounter = 3;
-		}
+		bool empty = lod > 0 && GetEmptySpaceBlock(lod, px >> lod, P.z, range);
 
-		frustumSize = 1 << lod;
+		bool needToReduce = lod > 0 && !empty;
+		int fLOD = needToReduce ? 0 : lod;
+		lod -= needToReduce;
+		upCounter = needToReduce ? 3 : upCounter;
 
-		float2 pc = (px << lod) / (float)CubeLength;
+		int frustumSize = (1 << fLOD);
+
+		float2 pc = (px >> fLOD) * frustumSize / (float)CubeLength;
+
 		float2 currentPixelLUCorner = float2((pc.x % 1) * 2 - 1, 1 - 2 * pc.y);
 		float3 newP = H;
 		float step = globalStep;
@@ -367,7 +302,7 @@ void AdaptiveAdvanceRayMarching(inout int counter, float3 P, float3 H, int faceI
 		bool clipped = false;
 		bool occupied = false;
 
-		if (lod == 0)
+		if (fLOD == 0)
 		{
 			depth1 = min(P.z, newP.z);
 			depth2 = max(P.z, newP.z);
@@ -423,37 +358,35 @@ void AdaptiveAdvanceRayMarching(inout int counter, float3 P, float3 H, int faceI
 				hit = index != -1;
 			}
 		}
-
+		
 		float zToTest = D.z > 0 ? range.Maxim : range.Minim;
 
 		float alpha = (zToTest - P.z) / (newP.z - P.z);
 
-		//clipped = newP.z < range.Minim || newP.z > range.Maxim;
-		int inside = alpha >= 1;
+		P = alpha > 1 ? newP : lerp(P, newP, alpha);
 
-		alpha = min(1, alpha);
+		npx = ToScreenPixel(Project(P) + Ds*0.001, faceIndex);
+		
+		//int pxYInc = hsideY * incToNext.y;// !hsideY ? 0 : incToNext.y;
+		//int pxXInc = (!hsideY)*incToNext.x;// hsideY ? 0 : incToNext.x;
 
-		P = lerp(P, newP, alpha);
-		npx = ToScreenPixel(Project(P + D*0.01), faceIndex);
+		//px = (fLOD == 0)? px + int2(pxXInc, pxYInc) : uint2(npx);
 
-		if (inside)
+		px = npx;
+
+		//lod = min(6, lod + (upCounter-- <= 0));
+		/*if (inside)
 		{
-			int pxYInc = hsideY * incToNext.y;// !hsideY ? 0 : incToNext.y;
-			int pxXInc = (!hsideY)*incToNext.x;// hsideY ? 0 : incToNext.x;
-			px += int2(pxXInc, pxYInc);
-
-			int toUp = upCounter > 0 ? 0 : min (6 - lod, 1);
-
-			px >>= toUp;
+			int toUp = upCounter > 0 ? 0 : min(8 - lod, 2);
 			lod += toUp;
 		}
 
-		upCounter = max(0, upCounter - inside);
+		upCounter = max(0, upCounter - inside);*/
 
 		counter += CountSteps;
 
-		if (hit || (globalStep - distance(firstP, P)) <= 0.001 || P.z > 100 || P.z <= znear)
-			break;
+		if (hit || (globalStep - distance(firstP, P)) <= 0.01 || P.z > 100 || P.z <= znear)
+			return;
 	}
 }
 
@@ -516,20 +449,20 @@ void FixedAdvanceRayMarching(inout int counter, float3 P, float3 H, int faceInde
 	float2 npx = ToScreenPixel(Project(P), faceIndex);
 	uint2 px = uint2(npx);
 
-	float2 fact = float2(Ds.x < 0 ? -0.5 : 0.5, Ds.y < 0 ? -0.5 : 0.5);
+	float2 fact = float2(Ds.x < 0 ? -1 : 1, Ds.y < 0 ? -1 : 1);
 
 	int2 incToNext = int2(fact.x < 0 ? -1 : 1, fact.y < 0 ? 1 : -1);
 
-	float2 XCorner1 = fact.x * float2(1, -1) * pixelSize;
-	float2 XCorner2 = fact.x * float2(1, 1) * pixelSize;
-	float2 YCorner1 = fact.y * float2(-1, 1) * pixelSize;
-	float2 YCorner2 = fact.y * float2(1, 1) * pixelSize;
+	float2 XCorner1 = 0.5*float2(1 + fact.x, 0) * pixelSize;
+	float2 XCorner2 = 0.5*float2(1 + fact.x, 1) * pixelSize;
+	float2 YCorner1 = 0.5*float2(0, -1 + fact.y) * pixelSize;
+	float2 YCorner2 = 0.5*float2(1, -1 + fact.y) * pixelSize;
 
 	float globalStep = length(H - P) * sign(dot(D, H - P)); // start step with all length to screen side
 
 	for (int k = 0; k < 512; k++)
 	{
-		float2 pc = (px + float2(0.5, 0.5)) / CubeLength;
+		float2 pc = (px) / (float)CubeLength;
 		float2 currentPixelCenter = float2((pc.x % 1) * 2 - 1, 1 - 2 * pc.y);
 		float3 newP = H;
 		float step = globalStep;
@@ -603,6 +536,7 @@ void FixedAdvanceRayMarching(inout int counter, float3 P, float3 H, int faceInde
 			return;
 	}
 }
+
 
 int GetFace(float3 v)
 {
