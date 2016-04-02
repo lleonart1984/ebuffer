@@ -198,6 +198,9 @@ private:
 	// Debuging
 	DebugTexture* debugingTexture;
 	DebugComplexity* debugingComplexity;
+
+	float4* debuggingRays;
+
 protected:
 	void DebugTexture(Texture2D* texture, float4x4 transform = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 }) {
 		debugingTexture->RenderTarget = RenderTarget;
@@ -252,6 +255,8 @@ protected:
 		hits = create Texture<int>(Description.Width, Description.Height);
 		hitCoords = create Texture<float4>(Description.Width, Description.Height);
 
+		debuggingRays = new float4[Description.Width*Description.Height];
+
 		traversing->Complexity = create Texture<int>(Description.Width, Description.Height);
 		traversing->HitCoords = hitCoords;
 		traversing->Hits = hits;
@@ -278,6 +283,7 @@ protected:
 		delete traversing->RaytraversalDebugCB;
 		delete traversing->Complexity;
 		delete traversing;
+		delete debuggingRays;
 	}
 	void Execute() {
 		float4x4 view, projection;
@@ -322,6 +328,7 @@ protected:
 		traversing->RaytraversalDebugCB->Update(debug);
 
 		int N = 4;
+		NumberOfRays = 0;
 
 		for (int b = 0; b < N; b++)
 		{
@@ -363,6 +370,14 @@ protected:
 
 				perform(traversing, RenderTarget->getWidth(), RenderTarget->getHeight());
 
+				if (ComputeNumberOfRays)
+				{ 
+					rayDirections->CopyTo(debuggingRays, Description.Width * Description.Height);
+					for (int i = 0; i < Description.Width * Description.Height; i++)
+						if (debuggingRays[i].z != 0)
+							NumberOfRays++;
+				}
+
 				//DebugTexture(traversing->HitCoords);
 				//DebugComplexity(traversing->Hits, 0.001);
 				//return;
@@ -379,6 +394,10 @@ public:
 
 	bool ShowComplexity;
 	bool UseAdaptiveSteps;
+
+	bool ComputeNumberOfRays;
+
+	int NumberOfRays;
 
 	RTProcess(DeviceManager* manager, ScreenDescription description) :DrawSceneProcess(manager, description) {
 	}

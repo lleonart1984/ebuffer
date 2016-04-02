@@ -429,7 +429,7 @@ void FixedAdvanceRayMarching(inout int counter, float3 P, float3 H, int faceInde
 
 	float globalStep = length(H - P) * sign(dot(D, H - P)); // start step with all length to screen side
 
-	for (int k = 0; k < 128; k++)
+	for (int k = 0; k < 512; k++)
 	{
 		float2 pc = (px) / (float)CubeLength;
 		float2 currentPixelCenter = float2((pc.x % 1) * 2 - 1, 1 - 2 * pc.y);

@@ -84,6 +84,7 @@ class Resource
 private:
 	ID3D11ShaderResourceView* srv;
 	ID3D11UnorderedAccessView* uav;
+
 protected:
 	ID3D11Resource* __internalResource;
 	DeviceManager *manager;
@@ -129,6 +130,8 @@ public:
 	void UpdateSubresource(int subresourceIndex, Resource* resource) {
 		manager->getContext()->CopySubresourceRegion(__internalResource, subresourceIndex, 0, 0, 0, resource->__internalResource, 0, NULL);
 	}
+
+	
 };
 
 class Buffer : public Resource
@@ -136,7 +139,6 @@ class Buffer : public Resource
 private:
 	int stride;
 	int byteLength;
-	Buffer* stagged = nullptr;
 	inline void Update(const void* data)
 	{
 		D3D11_MAPPED_SUBRESOURCE map;
@@ -145,6 +147,9 @@ private:
 		manager->getContext()->Unmap(this->getInternalBuffer(), 0);
 		//manager->getContext()->UpdateSubresource(this->getInternalBuffer(), 0, NULL, data, 0, 0);
 	}
+
+	Buffer* stagged = nullptr;
+
 public:
 	Buffer(DeviceManager* manager, ID3D11Buffer *buffer, int stride) :Resource(manager, buffer)
 	{
@@ -163,7 +168,7 @@ public:
 
 	template<typename T> void CopyTo(T* arr, int count) {
 		Buffer* stagging = stagged != nullptr ? stagged : stagged = manager->builder->StructuredBuffer<T>(byteLength / sizeof(T), D3D11_USAGE_STAGING, (D3D11_BIND_FLAG)0);
-		manager->getContext()->CopyResource(stagging->getInternalBuffer(), this->getInternalBuffer());
+		manager->getContext()->CopyResource(stagging->__internalResource, this->__internalResource);
 		D3D11_MAPPED_SUBRESOURCE map;
 		manager->getContext()->Map(stagging->getInternalBuffer(), 0, D3D11_MAP_READ, (D3D11_MAP_FLAG)0, &map);
 		auto hr = memcpy_s(arr, sizeof(T)*count, map.pData, sizeof(T)*count);
@@ -177,8 +182,11 @@ class Texture2D : public Resource
 private:
 	ID3D11RenderTargetView* rtv;
 	ID3D11DepthStencilView* dsv;
-	float Width;
-	float Height;
+	int Width;
+	int Height;
+
+	Texture2D* stagged = nullptr;
+
 public:
 	Texture2D(DeviceManager *manager, ID3D11Texture2D *texture) : Resource(manager, texture) {
 		D3D11_TEXTURE2D_DESC desc;
@@ -188,8 +196,8 @@ public:
 		rtv = NULL;
 		dsv = NULL;
 	}
-	inline float getWidth() { return Width; }
-	inline float getHeight() { return Height; }
+	inline int getWidth() { return Width; }
+	inline int getHeight() { return Height; }
 	~Texture2D()
 	{
 		if (rtv != NULL)
@@ -212,6 +220,15 @@ public:
 		if (dsv == NULL)
 			manager->getDevice()->CreateDepthStencilView(__internalResource, NULL, &this->dsv);
 		return dsv;
+	}
+
+	template<typename T> void CopyTo(T* arr, int count) {
+		Texture2D* stagging = stagged != nullptr ? stagged : stagged = manager->builder->Texture<T>(Width, Height, D3D11_USAGE_STAGING, (D3D11_BIND_FLAG)0);
+		manager->getContext()->CopyResource(stagging->__internalResource, this->__internalResource);
+		D3D11_MAPPED_SUBRESOURCE map;
+		manager->getContext()->Map(stagging->__internalResource, 0, D3D11_MAP_READ, (D3D11_MAP_FLAG)0, &map);
+		auto hr = memcpy_s(arr, sizeof(T)*count, map.pData, sizeof(T)*count);
+		manager->getContext()->Unmap(stagging->__internalResource, 0);
 	}
 };
 

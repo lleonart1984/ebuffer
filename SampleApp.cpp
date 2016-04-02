@@ -9,7 +9,7 @@
 #define BUNNY 1
 #define DRAGON 2
 #define SPONZA 3
-#define USED_SCENE SPONZA
+#define USED_SCENE BUNNY
 
 #define BASIC 1
 #define Debug_SGC 2
@@ -375,6 +375,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			break;
 		}
+		case 0x4D: // M
+		{
+			RTProcess *rtP = dynamic_cast<RTProcess*>(process);
+			if (rtP != nullptr)
+			{
+				rtP->ComputeNumberOfRays = !rtP->ComputeNumberOfRays;
+			}
+			break;
+		}
 		case VK_ADD: // +
 		{
 			auto dp = dynamic_cast<DebugableProcess*>(process);
@@ -489,7 +498,8 @@ void ComputeFPS() {
 
 	if (GetTimming() > nextShow)
 	{
-		FPS = 1000 * t / frameCount;// t > 0 ? frameCount / t : 0;
+		//FPS = 1000 * t / frameCount;// t > 0 ? frameCount / t : 0;
+		FPS = t > 0 ? frameCount / t : 0;
 
 		CurrentTime = GetTickCount64();
 		frameCount = 0;
@@ -533,6 +543,14 @@ void Render()
 		o << "Changing " << s << " " << value;
 		presenter->WriteLine(o.str().data());
 		presenter->WriteLineW(std::to_wstring(FPS).data());
+
+		RTProcess *rtprocess = dynamic_cast<RTProcess*>(process);
+		if (rtprocess != nullptr) { // Show ray number
+			presenter->WriteLine("Rays");
+			presenter->WriteLineW(std::to_wstring(rtprocess->NumberOfRays).data());
+			presenter->WriteLine("Rays per second");
+			presenter->WriteLineW(std::to_wstring((int)(rtprocess->NumberOfRays * FPS)).data());
+		}
 	}
 
 	StartTimming();
