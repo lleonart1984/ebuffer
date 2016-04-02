@@ -163,5 +163,8 @@
     <FxCompile Include="Shaders\DebugComplexity.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
+    <FxCompile Include="Shaders\RT_InitializeDirections_PS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

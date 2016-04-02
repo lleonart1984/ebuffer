@@ -75,7 +75,7 @@ public:
 		this->IndicesBuffer = IB;
 		this->MaterialIndex = materialIndex;
 		this->World = I_4x4;
-		if (count == MAXINT) 
+		if (count == MAXINT)
 			count = IB->getByteLength() / IB->getStride() - start;
 		this->start = start;
 		this->count = count;
@@ -86,7 +86,7 @@ public:
 		this->VertexBuffer = VB;
 		this->MaterialIndex = materialIndex;
 		this->World = I_4x4;
-		if (count == MAXINT) 
+		if (count == MAXINT)
 			count = VB->getByteLength() / VB->getStride() - start;
 		this->start = start;
 		this->count = count;
@@ -159,7 +159,7 @@ public:
 
 	void RotateAround(float hor, float vert) {
 		float3 dir = (Position - Target);
-		float3x3 rot = ::Rotate(hor, float3(0,1,0));
+		float3x3 rot = ::Rotate(hor, float3(0, 1, 0));
 		dir = mul(dir, rot);
 		Position = Target + dir;
 	}
@@ -435,7 +435,7 @@ private:
 	List<string> textureNames;
 	LightSource* light;
 	float4 backColor;
-
+	Texture2D* skyBox;
 	int resolveTexture(string subdir, string fileName) {
 		for (int i = 0; i < textures.getCount(); i++)
 			if (textureNames[i] == fileName)
@@ -515,9 +515,6 @@ private:
 		return 0;
 	}
 	void addIndex(List<int> &indices, int index, int pos) {
-		if (index <= 0)
-			return;
-
 		if (pos <= 2)
 			indices.Add(index - 1);
 		else
@@ -533,9 +530,9 @@ private:
 		int pos = 0;
 		int type = 0;
 
-		int poss = 0;
-		int nors = 0;
-
+		bool n = false;
+		bool p = false;
+		bool te = false;
 		while (!t.isEol())
 		{
 			int indexRead;
@@ -544,17 +541,24 @@ private:
 				switch (type)
 				{
 				case 0: addIndex(posIndices, indexRead, pos);
-					poss++;
+					p = true;
 					break;
 				case 1: addIndex(texIndices, indexRead, pos);
+					te = true;
 					break;
 				case 2: addIndex(norIndices, indexRead, pos);
-					nors++;
+					n = true;
 					break;
 				}
 			}
 			if (t.isEol())
 			{
+				if (!n)
+					addIndex(norIndices, -1, pos);
+				if (!te)
+					addIndex(texIndices, -1, pos);
+				n = false;
+				te = false;
 				t.skipCurrentLine();
 				return;
 			}
@@ -565,15 +569,32 @@ private:
 			else
 				if (t.matchSymbol(' '))
 				{
+					if (!n)
+						addIndex(norIndices, -1, pos);
+					if (!te)
+						addIndex(texIndices, -1, pos);
 					pos++;
 					type = 0;
+					n = false;
+					te = false;
 				}
 				else
 				{
+					if (!n)
+						addIndex(norIndices, -1, pos);
+					if (!te)
+						addIndex(texIndices, -1, pos);
+					n = false;
+					te = false;
+
 					t.skipCurrentLine();
 					return;
 				}
 		}
+		if (!n)
+			addIndex(norIndices, -1, pos);
+		if (!te)
+			addIndex(texIndices, -1, pos);
 	}
 
 public:
@@ -581,7 +602,7 @@ public:
 	Scene(DeviceManager *manager) :manager(manager), camera(new Camera()), visuals(List<Visual<V, M>*>()), light(new LightSource())
 	{
 		materialNames.Add("default");
-		M* defaultMaterial= new M();
+		M* defaultMaterial = new M();
 		materials.Add(defaultMaterial);
 	}
 	~Scene()
@@ -714,17 +735,19 @@ public:
 			vertices[i].Position = positions[positionIndices[i]];
 		if (normalIndices.getCount() > 0)
 			for (int i = 0; i < positionIndices.getCount(); i++)
-				vertices[i].Normal = normals[normalIndices[i]];
+				if (normalIndices[i] != -1)
+					vertices[i].Normal = normals[normalIndices[i]];
 		if (textureIndices.getCount() > 0)
 			for (int i = 0; i < positionIndices.getCount(); i++)
-				vertices[i].Coordinates = texcoords[textureIndices[i]];
-			
+				if (textureIndices[i] != -1)
+					vertices[i].Coordinates = texcoords[textureIndices[i]];
+
 		auto VB = manager->builder->VertexBuffer(vertices, positionIndices.getCount());
 		/*for (int i = 0; i < groups.getCount() - 1; i++)
 		{
 			int startIndex = groups[i];
 			int count = groups[i + 1] - groups[i];
-			
+
 			Visual<V, M>* v = new Visual<V, M>(this);
 			v->Load(VB, getMaterialIndex(usedMaterials[i]), startIndex, count);
 			visuals.Add(v);
@@ -739,6 +762,12 @@ public:
 		}
 
 		delete[] vertices;
+	}
+	void LoadSkybox(const char* filePath) {
+		skyBox = manager->loader->Texture(filePath);
+	}
+	inline Texture2D* getSkybox() {
+		return skyBox;
 	}
 };
 
@@ -788,7 +817,7 @@ protected:
 	void Initialize() {
 		this->DepthBuffer = this->builder->DepthBuffer(Description.Width, Description.Height);
 	}
-public :
+public:
 	Texture2D* RenderTarget;
 	Texture2D* DepthBuffer;
 	DrawSceneProcess(DeviceManager* manager, ScreenDescription description) :SceneProcess<ScreenDescription>(manager, description) {

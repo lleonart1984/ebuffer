@@ -8,12 +8,31 @@
 
 #define RT_EBUFFER_POWER 7
 
+struct RTInverseMatrixCB {
+	float4x4 Inverse;
+};
+
+class RT_InitializeDirections_PS : public PixelShaderBinding {
+public:
+	// RTs
+	Texture2D* RayDirections;
+	Buffer *InverseProjection;
+protected:
+	void Load() {
+		LoadCode("Shaders\\RT_InitializeDirections_PS.cso");
+	}
+	void OnGlobal()
+	{
+		RT(0, RayDirections);
+		CB(0, InverseProjection);
+	}
+};
+
 class RT_InitialRays_PS : public PixelShaderBinding {
 public:
 	// SRVs
 	Buffer* SceneGeometry;
 	// RTs
-	Texture2D* RayDirections;
 	Texture2D* Hits;
 	Texture2D* HitCoords;
 	// DB
@@ -25,9 +44,8 @@ protected:
 	void OnGlobal()
 	{
 		SRV(0, SceneGeometry);
-		RT(0, RayDirections);
-		RT(1, HitCoords);
-		RT(2, Hits);
+		RT(0, HitCoords);
+		RT(1, Hits);
 		DB(DepthBuffer);
 	}
 };
@@ -38,6 +56,7 @@ struct RTLightingCB {
 	float3 Intensity;
 	float rem1;
 };
+
 
 class RT_Bounce_PS : public PixelShaderBinding {
 public:
@@ -50,6 +69,7 @@ public:
 
 	Buffer *SceneGeometry;
 	Buffer *Materials;
+	Texture2D *SkyBox;
 	Texture2D** Textures;
 	int TextureCount;
 
@@ -64,6 +84,7 @@ public:
 
 	// CBs
 	Buffer *Lighting;
+	Buffer *InverseViewing;
 protected:
 	void Load() {
 		LoadCode("Shaders\\RT_Bounce_PS.cso");
@@ -76,13 +97,15 @@ protected:
 		SRV(4, HitCoords);
 		SRV(5, SceneGeometry);
 		SRV(6, Materials);
-		SRV(7, (Resource**)Textures, TextureCount);
+		SRV(7, SkyBox);
+		SRV(8, (Resource**)Textures, TextureCount);
 		SMP(0, Sampling);
 		RT(0, Accumulation);
 		RT(1, NewRayOrigins);
 		RT(2, NewRayDirections);
 		RT(3, NewRayFactors);
 		CB(0, Lighting);
+		CB(1, InverseViewing);
 	}
 };
 
@@ -157,6 +180,7 @@ private:
 	EBufferConstructionProcess *constructingEBuffer;
 	SG_Projection_VS *projectingScene;
 	RT_InitialRays_PS *initializingRays;
+	RT_InitializeDirections_PS *initializingDirections;
 	RT_Bounce_PS *bouncing;
 	RT_Traversal_PS *traversing;
 
@@ -197,6 +221,7 @@ protected:
 		load Process(constructingEBuffer, EBufferDescription{ RT_EBUFFER_POWER });
 		load Shader(projectingScene);
 		load Shader(initializingRays);
+		load Shader(initializingDirections);
 		load Shader(bouncing);
 		load Shader(traversing);
 
@@ -208,7 +233,9 @@ protected:
 
 		// CBs
 		projectingScene->Globals = create ConstantBuffer<SG_Projection_Global>();
+		initializingDirections->InverseProjection = create ConstantBuffer<RTInverseMatrixCB>();
 		bouncing->Lighting = create ConstantBuffer<RTLightingCB>();
+		bouncing->InverseViewing = create ConstantBuffer<RTInverseMatrixCB>();
 		traversing->EBufferInfoCB = create ConstantBuffer<EBufferInfo>();
 		traversing->RaytraversalDebugCB = create ConstantBuffer<RaytraversalDebug>();
 
@@ -262,17 +289,19 @@ protected:
 		auto sgcProcess = constructingEBuffer->ABuffer()->SceneGeometry();
 
 		// Creating initial rays
+		initializingDirections->InverseProjection->Update(projection.getInverse());
+		initializingDirections->RayDirections = rayDirections;
+		perform(initializingDirections, RenderTarget->getWidth(), RenderTarget->getHeight());
+
 		clear Depth(DepthBuffer);
 		clear RTV(rayOrigins); // all rays from observer (0,0,0)
 		clear RTV(rayFactors, 1); // all rays with 1,1,1 factor
-		clear RTV(rayDirections);
 		clear RTV(tmpRayDirections);
 		clear RTV(tmpRayFactors);
 		clear RTV(tmpRayOrigins);
 		clear RTV(hitCoords);
-		clear RTV(hits);
+		clear RTV(hits, -1);
 		initializingRays->DepthBuffer = DepthBuffer;
-		initializingRays->RayDirections = rayDirections;
 		initializingRays->Hits = hits;
 		initializingRays->HitCoords = hitCoords;
 		initializingRays->DepthBuffer = DepthBuffer;
@@ -292,10 +321,12 @@ protected:
 		debug.UseAdaptiveSteps = UseAdaptiveSteps ? 1 : 0;
 		traversing->RaytraversalDebugCB->Update(debug);
 
-		int N = 2;
+		int N = 4;
 
 		for (int b = 0; b < N; b++)
 		{
+			clear RTV(tmpRayFactors);
+			clear RTV(tmpRayDirections);
 			bouncing->RayOrigins = rayOrigins;
 			bouncing->RayDirections = rayDirections;
 			bouncing->RayFactors = rayFactors;
@@ -309,6 +340,7 @@ protected:
 			l.Position = xyz(mul(float4(scene->getLight()->Position, 1), view));
 			l.Intensity = scene->getLight()->Intensity;
 			bouncing->Lighting->Update(l);
+			bouncing->InverseViewing->Update(view.getInverse());
 			set clean Pipeline(bouncing)
 				with NoDepthTest()
 				with Viewport(RenderTarget->getWidth(), RenderTarget->getHeight())
@@ -338,7 +370,7 @@ protected:
 		}
 		if (ShowComplexity)
 		{
-			DebugTexture(traversing->HitCoords);
+			//DebugTexture(traversing->RayDirections);
 			DebugComplexity(traversing->Complexity);
 			return;
 		}
@@ -362,6 +394,9 @@ public:
 		bouncing->Materials = sgcProcess->Out_Materials;
 		bouncing->Textures = sgcProcess->Out_Textures;
 		bouncing->TextureCount = sgcProcess->TextureCount;
+
+		bouncing->SkyBox = scene->getSkybox();
+
 		// Scene Geometry data binding
 		traversing->SceneGeometry = constructingEBuffer->ABuffer()->SceneGeometry()->Out_Vertexes;
 	}

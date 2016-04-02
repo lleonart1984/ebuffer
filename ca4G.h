@@ -1500,6 +1500,7 @@ void DeviceManager::Perform(PixelShaderBinding *ps, int width, int height)
 	setter->Pipeline(ps);
 	setter->Viewport(width, height);
 	setter->NoDepthTest();
+	setter->NoBlending();
 
 	drawer->Screen();
 }

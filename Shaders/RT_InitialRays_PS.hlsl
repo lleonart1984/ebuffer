@@ -20,12 +20,11 @@ struct TransformedVertex
 
 StructuredBuffer<TransformedVertex> Vertexes : register (t0);
 
-void main(PS_IN input, out float3 direction : SV_TARGET0, out float3 hitCoord : SV_TARGET1, out int hitIndex : SV_TARGET2)
+void main(PS_IN input, out float3 hitCoord : SV_TARGET0, out int hitIndex : SV_TARGET1)
 {
 	float3 P = input.P;
 	int triangleIndex = input.TriangleIndex;
 
-	direction = normalize(P);
 	hitIndex = triangleIndex;
 
 	float3 P0 = Vertexes[triangleIndex * 3].P;
@@ -40,5 +39,5 @@ void main(PS_IN input, out float3 direction : SV_TARGET0, out float3 hitCoord : 
 
 	float l = a + b + c;
 
-	hitCoord = float3(a, b, c) / l;
+	hitCoord = l == 0 ? 0 : float3(a, b, c) / l;
 }

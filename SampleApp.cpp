@@ -54,11 +54,44 @@ enum DEBUG_INFO_MODE {
 };
 DEBUG_INFO_MODE DebugInfoChanging = DEBUG_INFO_MODE::DEBUG_INFO_LAYER;
 
+void SetGlassMaterial(int matIndex) {
+	if (scene->MaterialCount() > matIndex)
+	{
+		MATERIAL* m = scene->getMaterial(matIndex);
+		//m->Diffuse = float3(1, 0, 1);
+		m->Specular = float3(1, 1, 1);
+		m->SpecularSharpness = 80;
+		m->Roulette = float4(0.1, 0.1, 1, 0.66); // Glass
+	}
+}
+
+void SetMirrorMaterial(int matIndex) {
+	if (scene->MaterialCount() > matIndex)
+	{
+		MATERIAL* m = scene->getMaterial(matIndex);
+		//m->Diffuse = float3(1, 0, 1);
+		m->Specular = float3(1, 1, 1);
+		m->SpecularSharpness = 40;
+		m->Roulette = float4(0.1, 1, 0, 1); // Glass
+	}
+}
+
+void SetGlossyMaterial(int matIndex) {
+	if (scene->MaterialCount() > matIndex)
+	{
+		MATERIAL* m = scene->getMaterial(matIndex);
+		//m->Diffuse = float3(1, 0, 1);
+		m->Specular = float3(1, 1, 1);
+		m->SpecularSharpness = 20;
+		m->Roulette = float4(0.8, 0.4, 0, 1); // Glass
+	}
+}
+
 void InitializeScene(DeviceManager* manager)
 {
 	scene = new Scene<VERTEX, MATERIAL>(manager);
 	// Camera setup
-	scene->getCamera()->Position = float3(6, 3, 0);
+	scene->getCamera()->Position = float3(0.2, 3, 5);
 	scene->getCamera()->Target = float3(0, 1, 0);
 	scene->getCamera()->Up = float3(0, 1, 0);
 	scene->getCamera()->FoV = PI / 2;
@@ -71,35 +104,25 @@ void InitializeScene(DeviceManager* manager)
 
 	// Back color
 	scene->setBackColor(float4(0.2, 0.2, 0.4, 1));
-
-	int matToMod = 0;
+	scene->LoadSkybox("Models\\skyBox.dds");
 
 	switch (USED_SCENE)
 	{
 	case BUNNY:
-		scene->LoadObj(".\\Models\\bunny.obj", 10);
-		matToMod = 1;//bunny mat
+		scene->LoadObj(".\\Models\\bunnyOnPlate.obj", 20);
+		SetGlassMaterial(1);//bunny mat
+		SetMirrorMaterial(2);//plate
 		break;
 	case DRAGON:
-		scene->LoadObj(".\\Models\\dragon.obj", 1);
-		matToMod = 0;//default mat
+		scene->LoadObj(".\\Models\\dragon.obj", 3);
+		SetGlassMaterial(0);//default mat
 		break;
 	case SPONZA:
 		scene->LoadObj(".\\Models\\sponza\\sponza.obj", 0.1f);
-		matToMod = 17;//sponza floor
+		SetGlossyMaterial(17);//sponza floor
 		break;
 	default:
 		break;
-	}
-
-
-	if (scene->MaterialCount() > matToMod)
-	{
-		MATERIAL* m = scene->getMaterial(matToMod);
-		//m->Diffuse = float3(1, 0, 1);
-		m->Specular = float3(1, 1, 1);
-		m->SpecularSharpness = 40;
-		m->Roulette = float4(0.6, 0.8, 0, 0.66); // Mirror
 	}
 }
 

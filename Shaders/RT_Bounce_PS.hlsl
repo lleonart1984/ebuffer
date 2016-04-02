@@ -27,6 +27,9 @@ cbuffer Lighting : register(b0)
 
 	float3 LightIntensity;
 }
+cbuffer ViewTransform : register(b1) {
+	row_major matrix InverseView;
+}
 
 
 // Incoming Ray informations
@@ -40,9 +43,14 @@ Texture2D<float3>				  hitCoords : register (t4);
 StructuredBuffer<VertexData>      triangles : register (t5);
 // Materials and Textures of the scene
 StructuredBuffer<Material>		  materials : register (t6);
-Texture2D<float4>			   Textures[32] : register (t7);
+TextureCube<float3>					 skybox : register (t7);
+Texture2D<float4>			   Textures[32] : register (t8);
 
 sampler Sampler : register (s0);
+
+SamplerState skyBoxSampler{
+	Filter = MIN_MAG_MIP_LINEAR;
+};
 
 float4 Sampling(int index, float2 coord)
 {
@@ -117,6 +125,8 @@ void main(PS_IN input,
 	newPosition = pos;
 	newDirection = float3(0, 0, 0);
 
+	int hit = hits[coord];
+
 	if (!any(fac)) // opaque 
 	{
 		accumulation = float3(0, 0, 0);
@@ -129,16 +139,16 @@ void main(PS_IN input,
 	}
 	if (dot(pos, pos) > 10000) // too far position
 	{
-		accumulation = float3(0, 1, 1);
+		accumulation = skybox.Sample(skyBoxSampler, mul(normalize(pos), (float3x3)InverseView)) * fac;
 		return;
 	}
-	int hit = hits[coord];
 
 	if (hit < 0) // vanishes
 	{
-		accumulation = float3(1, 1, 0);
+		accumulation = skybox.Sample(skyBoxSampler, mul(dir, (float3x3)InverseView)) * fac;
 		return;
 	}
+
 	VertexData V1 = triangles[hit * 3];
 	VertexData V2 = triangles[hit * 3 + 1];
 	VertexData V3 = triangles[hit * 3 + 2];
