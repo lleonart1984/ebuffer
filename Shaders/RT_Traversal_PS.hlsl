@@ -85,35 +85,35 @@ bool GetEmptySpaceBlock(int rangeIndex, uint2 coord, float d, out Range range)
 // Determines blocks in a frustum given screen coordinates and minimum and maximum depths.
 // Return true if an occupied block is found, in that case, index1 and index2 are the interval of blocks involved.
 // Return false if no occupied blocks are found
-//bool DetectBlocks(uint2 coord, float minDepth, float maxDepth, out uint index1, out uint index2)
-//{
-//	uint startIndex = startEB.mips[0][coord];
-//	uint endIndex = startIndex + eLengthBuffer[coord] - 2;
-//	index1 = startIndex;
-//	index2 = endIndex;
-//	if (eLengthBuffer[coord] <= 1 || maxDepth < ranges[startIndex].Maxim || minDepth > ranges[endIndex + 1].Minim)
-//		return false;
-//	while (ranges[index1 + 1].Minim < minDepth)
-//		index1++;
-//	while (ranges[index2].Maxim > maxDepth)
-//		index2--;
-//	return index1 <= index2;
-//}
-
 bool DetectBlocks(uint2 coord, float minDepth, float maxDepth, out uint index1, out uint index2)
 {
 	uint startIndex = startEB.mips[0][coord];
 	uint endIndex = startIndex + eLengthBuffer[coord] - 2;
 	index1 = startIndex;
 	index2 = endIndex;
-	if (eLengthBuffer[coord] <= 1)
+	if (eLengthBuffer[coord] <= 1 || maxDepth < ranges[startIndex].Maxim || minDepth > ranges[endIndex + 1].Minim)
 		return false;
-	while (ranges[index1+1].Maxim < minDepth)
+	while (ranges[index1 + 1].Minim < minDepth)
 		index1++;
-	while (ranges[index2].Minim > maxDepth)
+	while (ranges[index2].Maxim > maxDepth)
 		index2--;
 	return index1 <= index2;
 }
+//
+//bool DetectBlocks(uint2 coord, float minDepth, float maxDepth, out uint index1, out uint index2)
+//{
+//	uint startIndex = startEB.mips[0][coord];
+//	uint endIndex = startIndex + eLengthBuffer[coord] - 2;
+//	index1 = startIndex;
+//	index2 = endIndex;
+//	if (eLengthBuffer[coord] <= 1)
+//		return false;
+//	while (ranges[index1+1].Maxim < minDepth)
+//		index1++;
+//	while (ranges[index2].Minim > maxDepth)
+//		index2--;
+//	return index1 <= index2;
+//}
 
 // Gets axises of cube face position lays on.
 // Use matrix { dx, dy, dz } to transform from local space to world space, transpose to otherwise.
